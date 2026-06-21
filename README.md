@@ -60,62 +60,98 @@ Already-bounded commands (those with `--stat`, `--oneline`, a pipe to
 `head`/`grep`/…, or a `>` redirect) are left alone, and the hook never
 double-wraps its own output or a follow-up read of a log file.
 
+## Supported agents
+
+The detection + rewrite logic lives in one agent-agnostic core
+(`core/quiet-core.sh`); a thin adapter per agent translates that agent's hook
+I/O. Command rewriting requires the agent to support *modifying* a command
+before it runs — not every agent does.
+
+| Agent | Adapter | Mechanism |
+|---|---|---|
+| **Claude Code** | `adapters/claude-code.sh` | `PreToolUse` → `hookSpecificOutput.updatedInput.command` |
+| **OpenAI Codex CLI** | `adapters/codex.sh` | `PreToolUse` → `permissionDecision: allow` + `updatedInput.command` |
+| **Gemini CLI** | `adapters/gemini.sh` | `BeforeTool` (matcher `run_shell_command`) → `hookSpecificOutput.tool_input` |
+| **GitHub Copilot CLI** | `adapters/copilot.sh` | `preToolUse` → `permissionDecision: allow` + `modifiedArgs` |
+| Cursor | — | ❌ hooks are allow/deny/ask only; can't rewrite a command |
+| Aider | — | ❌ no pre-tool hook mechanism |
+
+> The Claude Code adapter is tested. The Codex, Gemini, and Copilot adapters are
+> written to each tool's **documented** hook format but have not been verified
+> against a live install — confirm field names against your version, and please
+> open an issue/PR if anything needs adjusting.
+
 ## Install
 
-This repo doubles as a single-plugin marketplace.
+### Claude Code
+
+This repo doubles as a single-plugin marketplace:
 
 ```
 /plugin marketplace add yoeld-wix/claude-quiet-bash
 /plugin install claude-quiet-bash@claude-quiet-bash
 ```
 
-Then restart Claude Code (or start a new session) so the hook registers.
-
-### Manual install
-
-Copy `hooks/quiet-bash.sh` somewhere on disk, make it executable, and add a
-`PreToolUse` hook to your `~/.claude/settings.json`:
+Restart Claude Code so the hook registers. To install manually instead, add a
+`PreToolUse` hook to `~/.claude/settings.json` pointing at the adapter:
 
 ```json
 {
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "/abs/path/to/quiet-bash.sh", "timeout": 10 }
-        ]
-      }
+      { "matcher": "Bash", "hooks": [
+        { "type": "command", "command": "/abs/path/to/claude-quiet-bash/adapters/claude-code.sh", "timeout": 10 }
+      ] }
     ]
   }
 }
 ```
 
+### OpenAI Codex CLI
+
+Register `adapters/codex.sh` as a `PreToolUse` hook in `~/.codex/hooks.json`
+(see [Codex hooks docs](https://developers.openai.com/codex/hooks)), then
+approve it via `/hooks`.
+
+### Gemini CLI
+
+Add a `BeforeTool` hook in `settings.json` with `matcher: "run_shell_command"`
+running `adapters/gemini.sh`
+(see [Gemini CLI hooks reference](https://geminicli.com/docs/hooks/reference/)).
+
+### GitHub Copilot CLI
+
+Add a `preToolUse` hook in `.github/hooks/quiet-bash.json` running
+`adapters/copilot.sh`
+(see [Copilot hooks configuration](https://docs.github.com/en/copilot/reference/hooks-configuration)).
+
 ## Configuration
 
-Tunables live at the top of `hooks/quiet-bash.sh`:
+Override via environment variables (defaults shown):
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `LOG_DIR` | `$TMPDIR` or `/tmp` | where redirect logs are written |
-| `INLINE_LINE_LIMIT` | `60` | git output up to this many lines is shown inline |
-| `FAIL_TAIL_LINES` | `40` | lines of a failed command's log to surface |
-| `LOG_RETENTION_MINUTES` | `1440` | prune redirect logs older than this on each run |
+| `QUIET_LOG_DIR` | `$TMPDIR` or `/tmp` | where redirect logs are written |
+| `QUIET_INLINE_LINE_LIMIT` | `60` | git output up to this many lines is shown inline |
+| `QUIET_FAIL_TAIL_LINES` | `40` | lines of a failed command's log to surface |
+| `QUIET_LOG_RETENTION_MINUTES` | `1440` | prune redirect logs older than this on each run |
 
-To cover more commands, extend the `VERBOSE_RE` pattern.
+To cover more commands, extend the `always`/`managed` patterns in
+`core/quiet-core.sh`.
 
 ## Requirements
 
-- Claude Code with plugin/hook support
+- A supported agent (see table above) with hooks enabled
 - `jq` and `bash` on `PATH`
 
 ## How it works
 
-The hook is a `PreToolUse(Bash)` command. It reads the event JSON on stdin and,
-for a matching command, emits an `updatedInput` object that rewrites the command
-to redirect its output to `mktemp` and print only a summary. Non-matching
-commands produce no output, so they run unchanged. Each run also prunes redirect
-logs older than `LOG_RETENTION_MINUTES`.
+Each adapter reads its agent's pre-tool event JSON, extracts the shell command,
+and calls `quiet_rewrite` from the core. For a known-verbose command the core
+returns a rewritten command that redirects output to `mktemp` and prints only a
+summary; the adapter wraps that in whatever rewrite field its agent expects.
+Non-matching commands return nothing, so they run unchanged. Each invocation
+also prunes redirect logs older than `QUIET_LOG_RETENTION_MINUTES`.
 
 ## License
 
