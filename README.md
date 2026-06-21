@@ -12,13 +12,37 @@ the rest), so nothing important is lost.
 Short, quick commands are passed through untouched: wrapping them would cost
 more in extra round-trips than it would save.
 
-## Why
+## Why this reduces cost
 
 Build and test logs are the single biggest source of wasted tokens in an agent
 session — hundreds of lines of progress output that Claude reads once and never
-needs again. This hook turns a 600-line `yarn test` dump into a one-line
-"exit 0 — 612 lines hidden in /tmp/claude-cmd-XXXXXX", while keeping failures
-fully diagnosable.
+needs again.
+
+The key thing to understand is **how LLM billing works in a multi-turn agent
+loop**: the model is stateless, so on *every* turn the entire conversation so
+far — including all previous command outputs — is re-sent as input tokens. A log
+isn't paid for once when it's produced; it's paid for again on every subsequent
+turn it stays in the context window.
+
+So a single 600-line `yarn test` dump near the start of a 40-step task isn't
+~600 lines of cost — it's roughly **600 lines × the number of turns that
+follow**, because it rides along in the input of each one. Multiply that across
+every build, test, and install in a session and log noise becomes the dominant
+input-token cost.
+
+This hook turns that 600-line dump into a one-line
+`[ok: exit 0 — 612 lines hidden in /tmp/claude-cmd-XXXXXX]`. The full output
+still exists on disk (Claude can `grep`/`tail` it if it genuinely needs a
+detail), but it never enters the context window, so you stop paying to re-send
+it turn after turn. Concretely, it:
+
+- **shrinks input tokens on every later turn** — the expensive, repeated cost,
+  not just a one-time saving;
+- **keeps the prompt-cache prefix stable** — fewer giant, varying tool results
+  means more of the context can stay cached and cheap;
+- **preserves debuggability** — on failure it still surfaces the last 40 lines
+  inline, and small `git diff`/`show`/`log` output is shown as normal, so the
+  savings don't cost you the information you actually need.
 
 ## What it covers
 
