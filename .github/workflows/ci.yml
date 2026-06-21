@@ -19,7 +19,8 @@ jobs:
 
       - name: Validate JSON manifests
         run: |
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json \
+                   .github/plugin/marketplace.json gemini-extension.json .codex-plugin/plugin.json; do
             jq -e . "$f" >/dev/null && echo "ok: $f"
           done
 

@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v1.5.0-1fb588" alt="release">
+  <img src="https://img.shields.io/badge/release-v1.6.0-1fb588" alt="release">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
   <img src="https://img.shields.io/badge/works%20with-7%20agents-1fb588" alt="works with 7 agents">
   <img src="https://img.shields.io/badge/command%20output-−99.9%25-e8836b" alt="command output reduced 99.9%">
@@ -177,21 +177,31 @@ Restart Claude Code so the hook registers. To install manually instead, add a
 
 ### OpenAI Codex CLI
 
-Register `adapters/codex.sh` as a `PreToolUse` hook in `~/.codex/hooks.json`
-(see [Codex hooks docs](https://developers.openai.com/codex/hooks)), then
-approve it via `/hooks`.
+```
+codex plugin marketplace add yoeld-wix/claude-quiet-bash
+```
+
+Then register `adapters/codex.sh` as a `PreToolUse` hook in `~/.codex/hooks.json`
+(or run `./install.sh codex` to print the config) and approve it via `/hooks`.
 
 ### Gemini CLI
 
-Add a `BeforeTool` hook in `settings.json` with `matcher: "run_shell_command"`
-running `adapters/gemini.sh`
-(see [Gemini CLI hooks reference](https://geminicli.com/docs/hooks/reference/)).
+```
+gemini extensions install https://github.com/yoeld-wix/claude-quiet-bash
+```
+
+Then add a `BeforeTool` hook in `settings.json` with
+`matcher: "run_shell_command"` running `adapters/gemini.sh`
+(or `./install.sh gemini`).
 
 ### GitHub Copilot CLI
 
-Add a `preToolUse` hook in `.github/hooks/quiet-bash.json` running
-`adapters/copilot.sh`
-(see [Copilot hooks configuration](https://docs.github.com/en/copilot/reference/hooks-configuration)).
+```
+copilot plugin marketplace add yoeld-wix/claude-quiet-bash
+```
+
+Then add a `preToolUse` hook in `.github/hooks/quiet-bash.json` running
+`adapters/copilot.sh` (or `./install.sh copilot`).
 
 ### Cursor, Aider, Windsurf, Cline, or any shell (universal)
 

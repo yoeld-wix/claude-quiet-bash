@@ -3,6 +3,20 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.6.0] — 2026-06-21
+
+### Added
+- **Marketplace / extension distribution** for more agents (verified formats):
+  `.github/plugin/marketplace.json` (Copilot CLI — also reads the existing
+  `.claude-plugin/marketplace.json`), root `gemini-extension.json` (Gemini CLI),
+  and `.codex-plugin/plugin.json` (Codex CLI). One-liner installs in the README.
+- CI now validates the new manifests.
+
+### Notes
+- Codex *marketplace-catalog* schema and OpenCode (npm-only) are intentionally
+  not auto-authored — see README. Hook activation per agent still uses each
+  agent's documented hook config.
+
 ## [1.5.0] — 2026-06-21
 
 ### Added
