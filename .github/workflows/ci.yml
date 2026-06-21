@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y jq shellcheck
+
+      - name: ShellCheck (errors only)
+        run: shellcheck -S error core/*.sh adapters/*.sh tests/*.sh install.sh
+
+      - name: Validate JSON manifests
+        run: |
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
+            jq -e . "$f" >/dev/null && echo "ok: $f"
+          done
+
+      - name: Test suite
+        run: bash tests/run.sh

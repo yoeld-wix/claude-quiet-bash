@@ -7,7 +7,17 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/release-v1.5.0-1fb588" alt="release">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
+  <img src="https://img.shields.io/badge/works%20with-7%20agents-1fb588" alt="works with 7 agents">
+  <img src="https://img.shields.io/badge/command%20output-−99.9%25-e8836b" alt="command output reduced 99.9%">
+  <a href="https://github.com/yoeld-wix/claude-quiet-bash/actions/workflows/ci.yml"><img src="https://github.com/yoeld-wix/claude-quiet-bash/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+</p>
+
+<p align="center">
   <a href="#supported-agents">Works with Claude Code · Codex · Gemini · Copilot · Cursor · Aider · any shell</a> ·
+  <a href="#how-much-it-saves">Savings</a> ·
+  <a href="examples/before-after.md">Examples</a> ·
   <a href="LICENSE">MIT</a>
 </p>
 
@@ -262,6 +272,30 @@ command going from tens of thousands of tokens to ~25 is exact.
 > tokens, which are typically the largest single slice of an agentic session's
 > context — not a claim that your total bill drops 99.9%. Your overall saving
 > depends on how much of your session is verbose command output.
+
+## FAQ
+
+**Does it hide errors?** No. On a non-zero exit it prints the last
+`QUIET_FAIL_TAIL_LINES` (40) lines inline plus the log path, so the agent sees
+what failed and can grep the rest.
+
+**Where does the full output go?** A temp file (`$TMPDIR/claude-cmd-XXXXXX`). The
+agent can `grep`/`tail` it anytime; logs older than 24h are pruned automatically.
+
+**Will it break commands whose output I actually need?** It only wraps known-
+verbose build/test/install/CI commands and *large* `git diff/show/log`. Small git
+output, `ls`, `cat`, `grep`, `gh`, etc. pass through untouched.
+
+**What's the overhead?** A short command is never wrapped (wrapping costs an
+extra round-trip), so there's effectively none where it wouldn't pay off.
+
+**Does it work outside an agent?** Yes — the shell wrapper / PATH shims quiet your
+own interactive terminal too.
+
+**Are all the adapters tested?** The Claude Code adapter, the shell wrapper, and
+the PATH shims are covered by CI. The Codex/Gemini/Copilot adapters follow each
+tool's documented hook format but aren't yet verified on a live install — issues/
+PRs welcome.
 
 ## License
 
