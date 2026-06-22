@@ -131,5 +131,24 @@ pw=$(jq -n --arg t "[quiet-mcp] already done $bigtext" '{tool_name:"mcp__x__y", 
 pi=$(jq -n '{tool_name:"mcp__x__y", tool_response:{content:[{type:"image",data:"AAAA"}]}}')
 [ -z "$(printf '%s' "$pi" | "$MCP")" ] && pass "non-text MCP content passes through" || bad "mcp non-text passthrough"
 
+echo "== quiet-query (smart query / aggregation) =="
+QQ="$ROOT/core/quiet-query.sh"
+QT=$(mktemp -d); qf="$QT/d.json"
+jq -n '{meta:{v:1}, items:[{id:1,status:"ok",price:10},{id:2,status:"ok",price:20},{id:3,status:"err",price:30}]}' > "$qf"
+[ "$("$QQ" "$qf" count '.items')" = "3" ] && pass "query count" || bad "query count"
+[ "$("$QQ" "$qf" get '.meta.v')" = "1" ] && pass "query get" || bad "query get"
+[ "$("$QQ" "$qf" group '.items' '.status' | jq -r '.ok')" = "2" ] && pass "query group (aggregate)" || bad "query group"
+[ "$("$QQ" "$qf" stats '.items' '.price' | jq -r '.avg')" = "20" ] && pass "query stats avg" || bad "query stats"
+[ "$("$QQ" "$qf" select '.items' '.price>15' | jq 'length')" = "2" ] && pass "query select (filter)" || bad "query select"
+[ "$("$QQ" "$qf" pluck '.items' '.id' | jq -c .)" = "[1,2,3]" ] && pass "query pluck (project)" || bad "query pluck"
+"$QQ" "$qf" keys | grep -q 'items: array' && pass "query keys" || bad "query keys"
+"$QQ" "$qf" search 'err' | grep -q 'status' && pass "query search" || bad "query search"
+# works on YAML too (via shared converter), if available
+if command -v ruby >/dev/null 2>&1 || command -v yq >/dev/null 2>&1 || { command -v python3 >/dev/null 2>&1 && python3 -c 'import yaml' 2>/dev/null; }; then
+  printf 'items:\n  - {id: 1}\n  - {id: 2}\n' > "$QT/d.yaml"
+  [ "$("$QQ" "$QT/d.yaml" count '.items')" = "2" ] && pass "query on YAML" || bad "query yaml"
+fi
+rm -rf "$QT"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }

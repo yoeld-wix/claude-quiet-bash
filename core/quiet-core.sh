@@ -32,6 +32,26 @@ quiet_prune() {
     -mmin "+${QUIET_LOG_RETENTION_MINUTES}" -delete 2>/dev/null || true
 }
 
+# ── Get a file as JSON (json as-is; yaml via ruby / python3 / yq) ────────────
+# Prints JSON and returns 0, or returns 1 if it can't convert. Multi-doc YAML
+# becomes an array; single-doc is unwrapped.
+quiet_to_json() {
+  local file="$1" out
+  case "$file" in
+    *.yaml | *.yml)
+      if command -v ruby >/dev/null 2>&1 \
+         && out=$(ruby -ryaml -rjson -e 'd=YAML.load_stream(STDIN.read); puts JSON.generate(d.length==1 ? d[0] : d)' <"$file" 2>/dev/null) \
+         && [ -n "$out" ]; then printf '%s' "$out"; return 0; fi
+      if command -v python3 >/dev/null 2>&1 \
+         && out=$(python3 -c 'import sys,json,yaml; d=list(yaml.safe_load_all(sys.stdin)); json.dump(d[0] if len(d)==1 else d, sys.stdout)' <"$file" 2>/dev/null) \
+         && [ -n "$out" ]; then printf '%s' "$out"; return 0; fi
+      if command -v yq >/dev/null 2>&1 \
+         && out=$(yq -o=json '.' "$file" 2>/dev/null) && [ -n "$out" ]; then printf '%s' "$out"; return 0; fi
+      return 1 ;;
+    *) cat "$file" ;;
+  esac
+}
+
 # ── Runtime executor (for the shell-wrapper adapter) ─────────────────────────
 # Runs the given command, sending full output to a temp log and printing only a
 # summary; on failure it tails the log. Preserves the command's exit status.

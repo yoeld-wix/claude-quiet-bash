@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.11.0] — 2026-06-22
+
+### Added
+- **`core/quiet-query.sh` — smart query & aggregation over a spilled file.**
+  jq-backed ops: `keys`, `count`, `get`, `sample`, `pluck`, `select` (filter),
+  `group` (count-by-field), `stats` (count/min/max/sum/avg), `search`. Works on
+  JSON and YAML via the shared converter. Each op returns a small focused answer
+  so a huge spilled result is interrogated cheaply instead of re-read.
+- Collapsed-preview footers (file reads + MCP JSON results) now advertise
+  `quiet-query` ops instead of only raw jq.
+
+### Changed
+- Hoisted the YAML→JSON converter into the core (`quiet_to_json`); `quiet-json.sh`
+  now sources the core and reuses it.
+
 ## [1.10.0] — 2026-06-22
 
 ### Added

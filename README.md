@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v1.10.0-1fb588" alt="release">
+  <img src="https://img.shields.io/badge/release-v1.11.0-1fb588" alt="release">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
   <img src="https://img.shields.io/badge/works%20with-7%20agents-1fb588" alt="works with 7 agents">
   <img src="https://img.shields.io/badge/command%20output-−99.9%25-e8836b" alt="command output reduced 99.9%">
@@ -150,6 +150,27 @@ by distinct names, so `package-lock.json` barely shrank.)
 Pass-through is deliberate: small files, `jq`/`yq` **projections** (you already
 narrowed it), and piped/redirected commands are never touched. Tune with
 `QUIET_JSON_MIN_BYTES` (default 25000).
+
+### Querying without re-reading (`quiet-query`)
+
+Spilling is only half the win — the other half is making the spilled payload
+**cheap to interrogate**. Every collapsed-preview footer points at
+`core/quiet-query.sh`, a jq-backed tool with query + aggregation ops that each
+return a small, focused answer (not a dump):
+
+```
+quiet-query <file> keys                      # keys + value-types
+quiet-query <file> count  '.items'           # how many
+quiet-query <file> sample '.items' 5         # first 5
+quiet-query <file> pluck  '.items' '.id'     # project one field
+quiet-query <file> select '.items' '.score > 0.8'   # filter
+quiet-query <file> group  '.items' '.status' # count by field  (aggregate)
+quiet-query <file> stats  '.items' '.price'  # count/min/max/sum/avg
+quiet-query <file> search '<regex>'          # matching paths
+```
+
+Works on JSON and YAML (shared converter). The agent runs these through its own
+Bash tool, so a 300 K-token result becomes a handful of tiny, targeted queries.
 
 ### Large MCP responses
 
