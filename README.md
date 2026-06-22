@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v1.12.0-1fb588" alt="release">
+  <img src="https://img.shields.io/badge/release-v1.13.0-1fb588" alt="release">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
   <img src="https://img.shields.io/badge/works%20with-7%20agents-1fb588" alt="works with 7 agents">
   <img src="https://img.shields.io/badge/command%20output-−99.9%25-e8836b" alt="command output reduced 99.9%">
@@ -191,11 +191,21 @@ doesn't recognize** — safe no-op, never breakage. Small results and non-text
 content also pass through. Lossless: only the *preview* shrinks. Tune with
 `QUIET_RESULT_MIN_BYTES` (default 25000).
 
-> Today this is the **Claude Code** path (PostToolUse `updatedToolOutput`).
-> Copilot exposes an equivalent (`modifiedResult.textResultForLlm`) and Gemini a
-> workaround (`decision:"deny"`+`reason`) — adapters planned; **Codex** can't
-> rewrite results yet, and a transport-level **MCP proxy** (for any client) is
-> the planned universal path.
+**Across agents** (same shared core, different hook fields):
+
+| Agent | Adapter | Hook → replace field |
+|---|---|---|
+| **Claude Code** | `adapters/claude-code-result.sh` | `PostToolUse` → `updatedToolOutput` (shape-mirrored) |
+| **GitHub Copilot CLI** | `adapters/copilot-result.sh` | `postToolUse` → `modifiedResult.textResultForLlm` |
+| **Gemini CLI** | `adapters/gemini-result.sh` | `AfterTool` → `decision:"deny"`+`reason` ⚠️ |
+| Codex | — | can't rewrite results yet |
+
+> ⚠️ Gemini has no success-preserving replace field — the only way to substitute
+> text is `decision:"deny"`+`reason`, which marks the call as *denied* (the model
+> may read it as a failed tool call). Use with that in mind. **Codex** can't
+> rewrite tool results yet; a transport-level **MCP proxy** (for any client) is
+> the planned universal path. The Claude Code adapter is contract-tested; the
+> Copilot/Gemini result adapters follow documented schemas but aren't run live.
 
 ## Supported agents
 

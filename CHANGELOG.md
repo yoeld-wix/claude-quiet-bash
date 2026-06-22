@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.13.0] — 2026-06-22
+
+### Added
+- **Tool-result optimization for all hook-capable agents.** New
+  `adapters/copilot-result.sh` (`postToolUse` → `modifiedResult.textResultForLlm`)
+  and `adapters/gemini-result.sh` (`AfterTool` → `decision:"deny"`+`reason`;
+  Gemini has no success-preserving replace field — flagged). Extracted the spill
+  + collapse logic into a shared core function `quiet_result_summarize` reused by
+  all three result adapters. Codex can't rewrite results yet.
+
 ## [1.12.0] — 2026-06-22
 
 ### Changed

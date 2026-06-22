@@ -140,6 +140,20 @@ printf '%s' "$ostr" | jq -r '.hookSpecificOutput.updatedToolOutput' | grep -q 's
 poth=$(jq -n --arg t "$bigstr" '{tool_name:"Weird", tool_response:{weird:$t}}')
 [ -z "$(printf '%s' "$poth" | "$MCP")" ] && pass "unknown result shape passes through" || bad "unknown shape passthrough"
 
+echo "== result optimization: other agents =="
+# Gemini AfterTool: result at .tool_response.llmContent → deny+reason
+GR="$ROOT/adapters/gemini-result.sh"
+pg=$(jq -n --arg t "$bigjson" '{tool_name:"mcp_search_query", tool_response:{llmContent:$t}}')
+og=$(printf '%s' "$pg" | "$GR")
+{ [ "$(printf '%s' "$og" | jq -r '.decision')" = "deny" ] && printf '%s' "$og" | jq -r '.reason' | grep -q 'quiet-bash'; } && pass "gemini result → deny+reason (collapsed)" || bad "gemini result"
+[ -z "$(printf '%s' "$(jq -n '{tool_name:"x", tool_response:{llmContent:"tiny"}}')" | "$GR")" ] && pass "gemini small passes through" || bad "gemini small"
+# Copilot postToolUse: result at .toolResult.textResultForLlm → modifiedResult
+CR="$ROOT/adapters/copilot-result.sh"
+pc=$(jq -n --arg t "$bigjson" '{toolName:"mcp_search_query", toolResult:{resultType:"success", textResultForLlm:$t}}')
+oc=$(printf '%s' "$pc" | "$CR")
+{ [ "$(printf '%s' "$oc" | jq -r '.modifiedResult.resultType')" = "success" ] && printf '%s' "$oc" | jq -r '.modifiedResult.textResultForLlm' | grep -q 'quiet-bash'; } && pass "copilot result → modifiedResult success" || bad "copilot result"
+[ -z "$(printf '%s' "$(jq -n '{toolName:"x", toolResult:{resultType:"success", textResultForLlm:"tiny"}}')" | "$CR")" ] && pass "copilot small passes through" || bad "copilot small"
+
 echo "== quiet-query (smart query / aggregation) =="
 QQ="$ROOT/core/quiet-query.sh"
 QT=$(mktemp -d); qf="$QT/d.json"

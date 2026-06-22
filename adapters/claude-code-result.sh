@@ -38,29 +38,9 @@ text=$(printf '%s' "$input" | jq -r '
     else (.content | map(select(.type=="text") | .text) | join("\n")) end' 2>/dev/null)
 [ -z "$text" ] && exit 0            # nothing textual (image/audio/empty)
 
-case "$text" in *'[quiet-bash]'* | *'[quiet-mcp]'*) exit 0 ;; esac   # never re-wrap
-
-bytes=$(printf '%s' "$text" | wc -c | tr -d ' ')
-[ "$bytes" -le "${QUIET_RESULT_MIN_BYTES}" ] && exit 0   # small → pass through
-
 tool=$(printf '%s' "$input" | jq -r '.tool_name // "tool"')
 
-spill=$(mktemp "${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}result-XXXXXX")
-printf '%s' "$text" > "$spill"
-
-if printf '%s' "$text" | jq -e . >/dev/null 2>&1; then
-  mv "$spill" "$spill.json"; spill="$spill.json"
-  summary="[quiet-bash] ${tool} returned ${bytes} bytes of JSON — collapsed below.
-$("$ROOT/core/quiet-json.sh" "$spill")"
-else
-  lines=$(wc -l <"$spill" | tr -d ' ')
-  summary=$(
-    echo "[quiet-bash] ${tool} returned ${bytes} bytes / ${lines} lines — spilled to ${spill}"
-    echo "--- first 20 lines ---"; head -n 20 "$spill"
-    echo "--- last 10 lines ---";  tail -n 10 "$spill"
-    printf "[query the full result:  sed -n '1,60p' %q   |   grep -n '<pattern>' %q]\n" "$spill" "$spill"
-  )
-fi
+summary=$(quiet_result_summarize "$text" "$tool") || exit 0   # small/empty → pass through
 
 # Emit a replacement that mirrors the original shape.
 if [ "$shape" = "string" ]; then

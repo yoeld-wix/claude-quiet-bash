@@ -111,6 +111,33 @@ exit \$__st
 WRAP
 }
 
+# ── Summarize a large tool RESULT (for PostToolUse-style adapters) ───────────
+# Given the textual payload of a tool result (and the tool name), prints a
+# compact replacement summary and returns 0; returns 1 to pass through (small,
+# empty, or already-wrapped). JSON → collapsed preview + quiet-query footer;
+# text → head/tail + spill pointer. The byte-exact payload is spilled to a file.
+quiet_result_summarize() {
+  local text="$1" tool="${2:-tool}" bytes spill lines
+  [ -z "$text" ] && return 1
+  case "$text" in *'[quiet-bash]'* | *'[quiet-mcp]'*) return 1 ;; esac
+  bytes=$(printf '%s' "$text" | wc -c | tr -d ' ')
+  [ "$bytes" -le "${QUIET_RESULT_MIN_BYTES}" ] && return 1
+  spill=$(mktemp "${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}result-XXXXXX")
+  printf '%s' "$text" > "$spill"
+  if printf '%s' "$text" | jq -e . >/dev/null 2>&1; then
+    mv "$spill" "$spill.json"; spill="$spill.json"
+    printf '[quiet-bash] %s returned %s bytes of JSON — collapsed below.\n%s' \
+      "$tool" "$bytes" "$("$QUIET_CORE_DIR/quiet-json.sh" "$spill")"
+  else
+    lines=$(wc -l <"$spill" | tr -d ' ')
+    printf '[quiet-bash] %s returned %s bytes / %s lines — spilled to %s\n' "$tool" "$bytes" "$lines" "$spill"
+    echo "--- first 20 lines ---"; head -n 20 "$spill"
+    echo "--- last 10 lines ---";  tail -n 10 "$spill"
+    printf "[query the full result:  sed -n '1,60p' %q   |   grep -n '<pattern>' %q]\n" "$spill" "$spill"
+  fi
+  return 0
+}
+
 # ── Decide + rewrite ─────────────────────────────────────────────────────────
 # Prints rewritten command and returns 0 to wrap; returns 1 to pass through.
 quiet_rewrite() {
