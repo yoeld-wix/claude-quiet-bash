@@ -40,7 +40,22 @@ text=$(printf '%s' "$input" | jq -r '
 
 tool=$(printf '%s' "$input" | jq -r '.tool_name // "tool"')
 
-summary=$(quiet_result_summarize "$text" "$tool") || exit 0   # small/empty → pass through
+# Source-file outline: only a native Read of a large source file (never Grep/Edit/Write,
+# whose tool_input carries a path but whose RESULT is not the file content).
+summary=""
+obytes=$(printf '%s' "$text" | wc -c | tr -d ' ')
+if [ "$tool" = "Read" ] && [ "$obytes" -gt "${QUIET_OUTLINE_MIN_BYTES}" ]; then
+  path=$(printf '%s' "$input" | jq -r '.tool_input.path // .tool_input.file_path // empty' 2>/dev/null)
+  if [ -n "$path" ] && [ -f "$path" ]; then
+    case "${path##*.}" in
+      py|js|mjs|cjs|jsx|ts|tsx|go|rs|java|kt|kts|scala|rb|c|h|cc|cpp|cxx|hpp|php|swift)
+        osum=$("$ROOT/core/quiet-outline.sh" "$path")
+        case "$osum" in '[quiet-bash]'*) summary="$osum" ;; esac ;;
+    esac
+  fi
+fi
+
+[ -z "$summary" ] && { summary=$(quiet_result_summarize "$text" "$tool") || exit 0; }   # small/empty → pass through
 
 # Emit a replacement that mirrors the original shape.
 if [ "$shape" = "string" ]; then

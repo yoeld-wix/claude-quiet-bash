@@ -204,5 +204,100 @@ else
   echo "  (skipped — node not available)"
 fi
 
+echo "== source-file outlining =="
+QO="$ROOT/core/quiet-outline.sh"
+OT=$(mktemp -d)
+# A large (>30KB) Python file with many symbols.
+{
+  echo "import os"
+  echo "import sys"
+  echo "from typing import List"
+  for i in $(seq 1 400); do
+    echo ""
+    echo "def func_${i}(a, b):"
+    echo "    # padding to grow the file well past the byte threshold xxxxxxxxxxxxxxxxxxxx"
+    echo "    return a + b + ${i}"
+  done
+  echo ""
+  echo "class Widget:"
+  echo "    def render(self):"
+  echo "        return 'MARKER_RENDER_BODY'"
+} > "$OT/big.py"
+po=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.py")
+printf '%s' "$po" | grep -q '^\[quiet-bash\].*Python.*outline' && pass "python file outlined" || bad "python outline header"
+printf '%s' "$po" | grep -q 'def func_1(a, b)' && pass "python signature shown" || bad "python signature"
+printf '%s' "$po" | grep -qE 'body [0-9]+-[0-9]+' && pass "python body ranges shown" || bad "python body range"
+# Range correctness: the Widget.render body range must contain the marker.
+rng=$(printf '%s\n' "$po" | sed -n 's/.*render.*body \([0-9]*\)-\([0-9]*\)$/\1 \2/p' | head -1)
+set -- $rng
+[ -n "${1:-}" ] && sed -n "${1:-1},${2:-1}p" "$OT/big.py" | grep -q 'MARKER_RENDER_BODY' \
+  && pass "python range expands to the real body" || bad "python range correctness"
+# Byte threshold: small file (<30KB) with many symbols should NOT outline
+{ echo "def a(): pass"; echo "def b(): pass"; echo "def c(): pass"; echo "def d(): pass"; } > "$OT/smallmany.py"
+ps=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/smallmany.py")
+printf '%s' "$ps" | grep -q '^\[quiet-bash\]' && bad "small file with many symbols should NOT outline" || pass "byte threshold: small file passes through raw"
+# Symbol floor: a source-extension file with <3 symbols falls back to raw cat.
+{ echo "x = 1"; for i in $(seq 1 4000); do echo "# comment line $i padding padding padding"; done; } > "$OT/data.py"
+pf=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/data.py")
+printf '%s' "$pf" | grep -q '^\[quiet-bash\]' && bad "symbol-floor should NOT outline" || pass "symbol-floor falls back to raw"
+# Non-source extension → raw passthrough.
+{ for i in $(seq 1 4000); do echo "plain text line $i"; done; } > "$OT/notes.txt"
+pn=$("$QO" "$OT/notes.txt")
+printf '%s' "$pn" | grep -q '^\[quiet-bash\]' && bad ".txt should not be outlined" || pass "non-source extension passthrough"
+# TypeScript
+{ echo "import x from 'y'"; for i in $(seq 1 300); do echo "export function fn${i}(a: number): number { return a + ${i} }"; echo "// padding to grow file past threshold xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; done; echo "export class Svc { run(): void { return } }"; } > "$OT/big.ts"
+pt=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.ts"); printf '%s' "$pt" | grep -q '^\[quiet-bash\].*JS/TS.*outline' && printf '%s' "$pt" | grep -q 'export function fn1' && pass "ts outlined" || bad "ts outline"
+# Go
+{ echo "package main"; echo "import \"fmt\""; for i in $(seq 1 400); do echo "func Fn${i}() int { return ${i} }"; echo "// padding to grow file past threshold xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; done; echo "type T struct { x int }"; } > "$OT/big.go"
+pg=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.go"); printf '%s' "$pg" | grep -q '^\[quiet-bash\].*Go.*outline' && printf '%s' "$pg" | grep -q 'func Fn1' && pass "go outlined" || bad "go outline"
+# Rust
+{ echo "use std::io;"; for i in $(seq 1 400); do echo "pub fn fn${i}() -> i32 { ${i} }"; echo "// padding to grow file past threshold xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; done; echo "struct S { x: i32 }"; } > "$OT/big.rs"
+pr=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.rs"); printf '%s' "$pr" | grep -q '^\[quiet-bash\].*Rust.*outline' && printf '%s' "$pr" | grep -q 'fn fn1' && pass "rust outlined" || bad "rust outline"
+# Java
+{ echo "package a;"; echo "public class C {"; for i in $(seq 1 400); do echo "  public int m${i}() { return ${i}; }"; echo "  // padding to grow file past threshold xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; done; echo "}"; } > "$OT/big.java"
+pj=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.java"); printf '%s' "$pj" | grep -q '^\[quiet-bash\].*Java.*outline' && printf '%s' "$pj" | grep -q 'class C' && pass "java outlined" || bad "java outline"
+# Ruby
+{ echo "require 'set'"; echo "class C"; for i in $(seq 1 400); do echo "  def m${i}; ${i}; end"; echo "  # padding to grow file past threshold xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; done; echo "end"; } > "$OT/big.rb"
+pb=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.rb"); printf '%s' "$pb" | grep -q '^\[quiet-bash\].*Ruby.*outline' && printf '%s' "$pb" | grep -q 'def m1' && pass "ruby outlined" || bad "ruby outline"
+# C
+{ echo "#include <stdio.h>"; for i in $(seq 1 400); do echo "int fn${i}(int a) { return a + ${i}; }"; echo "// padding to grow file past threshold xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; done; echo "struct S { int x; };"; } > "$OT/big.c"
+pc=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.c"); printf '%s' "$pc" | grep -q '^\[quiet-bash\].*C/C++.*outline' && printf '%s' "$pc" | grep -q 'fn1(' && pass "c outlined" || bad "c outline"
+# Kotlin
+{ echo "package a"; for i in $(seq 1 400); do echo "fun m${i}(x: Int): Int { return x + ${i} }"; done; echo "class C { fun run() {} }"; } > "$OT/big.kt"
+pk=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.kt"); printf '%s' "$pk" | grep -q 'fun m1' && pass "kotlin outlined" || bad "kotlin outline"
+# Scala
+{ echo "package a"; echo "object O {"; for i in $(seq 1 400); do echo "  def m${i}(x: Int): Int = x + ${i}"; done; echo "}"; } > "$OT/big.scala"
+psc=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.scala"); printf '%s' "$psc" | grep -q 'def m1' && pass "scala outlined" || bad "scala outline"
+# PHP
+{ echo "<?php"; echo "class C {"; for i in $(seq 1 400); do echo "  function m${i}() { return ${i}; }"; done; echo "}"; } > "$OT/big.php"
+pp=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.php"); printf '%s' "$pp" | grep -q 'function m1' && pass "php outlined" || bad "php outline"
+# Swift
+{ echo "import Foundation"; for i in $(seq 1 400); do echo "func m${i}(x: Int) -> Int { return x + ${i} }"; done; echo "struct S { func run() {} }"; } > "$OT/big.swift"
+pw=$(QUIET_OUTLINE_MIN_BYTES=30000 "$QO" "$OT/big.swift"); printf '%s' "$pw" | grep -q 'func m1' && pass "swift outlined" || bad "swift outline"
+# quiet_rewrite routes a large source read to the outliner
+qr=$(quiet_rewrite "cat $OT/big.py") && printf '%s' "$qr" | grep -q 'quiet-outline.sh' && pass "rewrite routes big.py to outliner" || bad "rewrite big.py"
+# piped read is left alone
+quiet_rewrite "cat $OT/big.py | grep def" >/dev/null && bad "piped read should pass through" || pass "piped source read passes through"
+# small source file is left alone
+echo "def tiny(): pass" > "$OT/tiny.py"
+quiet_rewrite "cat $OT/tiny.py" >/dev/null && bad "small file should pass through" || pass "small source read passes through"
+# Native Read path: tool_input.path to a large source file → outline in updatedToolOutput
+CR="$ROOT/adapters/claude-code-result.sh"
+content=$(cat "$OT/big.py")
+payload=$(jq -n --arg p "$OT/big.py" --arg c "$content" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
+ro=$(printf '%s' "$payload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
+printf '%s' "$ro" | jq -r '.hookSpecificOutput.updatedToolOutput' 2>/dev/null | grep -q 'outline' \
+  && pass "native Read of big.py is outlined" || bad "native Read outline"
+# Edit of a large .py returns a small success message → must pass through, NOT be outlined
+epayload=$(jq -n --arg p "$OT/big.py" '{tool_name:"Edit", tool_input:{file_path:$p}, tool_response:"The file has been updated successfully."}')
+eo=$(printf '%s' "$epayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
+# small result → adapter exits 0 (no output) OR passes the message through; either way it must NOT contain an outline
+printf '%s' "$eo" | grep -q 'outline' && bad "Edit result must not be outlined" || pass "Edit result not clobbered by outline"
+# Grep over a large .py returning a small match → must NOT be outlined
+gpayload=$(jq -n --arg p "$OT/big.py" '{tool_name:"Grep", tool_input:{path:$p}, tool_response:"big.py:12: def func_12(a, b):"}')
+go=$(printf '%s' "$gpayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
+printf '%s' "$go" | grep -q 'outline' && bad "Grep result must not be outlined" || pass "Grep result not clobbered by outline"
+rm -rf "$OT"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }

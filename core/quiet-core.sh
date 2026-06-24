@@ -22,6 +22,8 @@
 : "${QUIET_LOG_RETENTION_MINUTES:=1440}" # prune redirect logs older than this (24h)
 : "${QUIET_JSON_MIN_BYTES:=25000}"       # summarize *.json dumps larger than this
 : "${QUIET_RESULT_MIN_BYTES:=${QUIET_MCP_MIN_BYTES:-25000}}" # summarize tool results larger than this
+: "${QUIET_OUTLINE_MIN_BYTES:=30000}"    # outline source files larger than this
+: "${QUIET_OUTLINE_MIN_SYMBOLS:=3}"      # below this many symbols, skip outlining
 
 # Absolute dir of this core (so quiet_rewrite can point at sibling scripts).
 QUIET_CORE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || QUIET_CORE_DIR=.
@@ -146,7 +148,7 @@ quiet_rewrite() {
 
   # Never double-wrap, and never wrap a follow-up read of a redirect log.
   case "$cmd" in
-    *__log=* | *"${QUIET_LOG_PREFIX}"* | *quiet-json.sh*) return 1 ;;
+    *__log=* | *"${QUIET_LOG_PREFIX}"* | *quiet-json.sh* | *quiet-outline.sh*) return 1 ;;
   esac
 
   # ── JSON/YAML read optimization: summarize a large structured-data dump ──
@@ -173,6 +175,21 @@ quiet_rewrite() {
           printf '%q %q' "${QUIET_CORE_DIR}/quiet-json.sh" "$jfile"
           return 0
         fi
+      fi
+      ;;
+  esac
+
+  # ── Source-file outline: large code file read → signature skeleton ──
+  case "$cmd" in
+    *'|'* | *'>'*) : ;;   # piped/redirected → skip
+    *)
+      local sfile
+      sfile=$(printf '%s' "$cmd" | grep -oE '[^[:space:]]+\.(py|js|mjs|cjs|jsx|ts|tsx|go|rs|java|kt|kts|scala|rb|c|h|cc|cpp|cxx|hpp|php|swift)' | head -1)
+      if [ -n "$sfile" ] && [ -f "$sfile" ] \
+         && [ "$(wc -c <"$sfile" 2>/dev/null || echo 0)" -gt "${QUIET_OUTLINE_MIN_BYTES}" ] \
+         && printf '%s' "$cmd" | grep -qE '(^|[[:space:];&|(])(cat|bat|less|more|head|tail)[[:space:]]'; then
+        printf '%q %q' "${QUIET_CORE_DIR}/quiet-outline.sh" "$sfile"
+        return 0
       fi
       ;;
   esac
