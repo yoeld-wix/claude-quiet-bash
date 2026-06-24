@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.15.1] — 2026-06-24
+
+### Fixed
+- **Source outlining now actually fires on the native `Read` tool.** The
+  PostToolUse hook matcher was `mcp__.*|WebFetch|WebSearch` — it never included
+  `Read`, so the v1.15.0 native-Read outlining path was dead in a real session
+  (only the Bash `cat` path worked). Added `Read` to the matcher. The Read path
+  now outlines large **source** files and passes every other read through
+  untouched (it does not head/tail arbitrary large reads — only MCP/WebFetch/
+  WebSearch results are collapsed as before). Added a wiring regression test
+  asserting the matcher includes `Read`, plus a large-non-source-Read
+  passthrough test.
+
 ## [1.15.0] — 2026-06-23
 
 ### Added

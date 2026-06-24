@@ -297,6 +297,15 @@ printf '%s' "$eo" | grep -q 'outline' && bad "Edit result must not be outlined" 
 gpayload=$(jq -n --arg p "$OT/big.py" '{tool_name:"Grep", tool_input:{path:$p}, tool_response:"big.py:12: def func_12(a, b):"}')
 go=$(printf '%s' "$gpayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
 printf '%s' "$go" | grep -q 'outline' && bad "Grep result must not be outlined" || pass "Grep result not clobbered by outline"
+# Large NON-source Read (e.g. a .txt) → must pass through untouched (no head/tail, no rewrite)
+{ for i in $(seq 1 4000); do echo "log line $i ................................................"; done; } > "$OT/big.txt"
+tpayload=$(jq -n --arg p "$OT/big.txt" --arg c "$(cat "$OT/big.txt")" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
+to=$(printf '%s' "$tpayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
+[ -z "$to" ] && pass "large non-source Read passes through untouched" || bad "non-source Read should pass through"
+# Wiring regression: the PostToolUse matcher MUST include Read (else native-Read outlining never fires)
+HJ="$ROOT/hooks/hooks.json"
+jq -e '.hooks.PostToolUse[]?.matcher | select(test("(^|\\|)Read($|\\|)"))' "$HJ" >/dev/null 2>&1 \
+  && pass "hooks.json PostToolUse matcher includes Read" || bad "PostToolUse matcher missing Read"
 rm -rf "$OT"
 
 echo
