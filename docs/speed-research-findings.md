@@ -50,7 +50,29 @@ do cross-turn masking, gate it behind a `clear_at_least`-style token threshold.
 
 ---
 
-## B. Shell-hook latency — ⚠️ CREDIBLE LEADS, NOT VERIFIED THIS RUN
+## B-VERIFIED. Claude Code hook `if` field — checked against the docs, REJECTED as low-fit
+
+Confirmed real (code.claude.com/docs/en/hooks + /permissions): hooks support an
+optional **`if`** field that filters with **permission-rule syntax**
+(gitignore-style globs, e.g. `Read(*.py)`, `Bash(git *)`) and **short-circuits
+before the command process spawns**. `async`/`asyncRewake` also exist (not usable
+for our rewrite hooks — they must be synchronous).
+
+**Decision: do NOT use `if`-gating in quiet-bash.** Reasons:
+- It matches only **static** patterns; quiet-bash's decisions are **runtime**
+  (`cat *.json` only if >25 KB; outline only if >30 KB; the large verbose-command
+  set). Permission globs can't see file size or output content.
+- **No brace expansion** (`Read(*.{py,ts})` unsupported) — covering ~22 source
+  extensions would need ~22 separate hook entries.
+- Gating the **Bash** hook is unsafe: an incomplete `if` pattern would miss
+  quieting a big log (a real regression, worse than a wasted spawn).
+- Gating the **Read** hook is the only legal target, but saves only the ~40 ms
+  spawn on non-source reads — latency already invisible vs the LLM turn.
+
+The `if` field is excellent for its actual purpose (security gating); it's just a
+poor fit for quiet-bash's runtime-conditional logic.
+
+## B-LEADS. Other shell-hook latency leads — NOT VERIFIED THIS RUN
 
 The verification agents failed on the session limit (votes came back `0-0`,
 which the harness mislabeled as "refuted" — they were *not* disproven, just
