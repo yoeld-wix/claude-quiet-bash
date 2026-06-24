@@ -104,6 +104,26 @@ with the "don't rewrite in Rust" conclusion.
 
 ---
 
+## B-POC. Compiled (Rust/Go) outliner vs shell — MEASURED 2026-06-24
+
+Built a Go outliner (Rust stand-in: native binary, native regex, ~fast startup)
+replicating `quiet-outline.sh`'s Python logic; identical output (164 symbols,
+same ranges). Benchmarked vs the shell grep+awk pipeline:
+
+| File | shell (grep+awk) | compiled | speedup |
+|---|---|---|---|
+| 135 KB real `.py` (164 sym) | 94.6 ms | 8.5 ms | **11.1×** |
+| 860 KB huge `.py` (20k sym) | 316.3 ms | 19.4 ms | **16.3×** |
+
+**Conclusion:** compiled is genuinely ~11–16× faster on the outliner (the one
+compute-bound path) — but the absolute saving (~85–300 ms, on the infrequent
+large-source-read path) is invisible against the multi-second LLM turn, and a
+compiled binary would cost the zero-dep / drop-in / auditable-shell identity
+(per-platform builds + release pipeline + binary trust). Verdict: keep shell as
+the default. If ever wanted, ship a compiled binary as an **optional accelerator**
+(use-if-present, shell fallback), like the ctags/tree-sitter ladder. NOT for the
+hook dispatch — that was fork-bound and already fixed in shell (v1.16.1).
+
 ## C. Cost-saving survey — ❌ NO DATA (re-run needed)
 
 The cost workflow fetched 0 sources (all failed on the limit). Re-run after the
