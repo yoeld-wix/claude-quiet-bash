@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.21.0] — 2026-06-25
+
+### Added
+- **OpenCode adapter** (`adapters/opencode.mjs`) — a native plugin on OpenCode's
+  `tool.execute.after` hook that quiets large `bash` tool results: spills the
+  byte-exact payload and replaces the result with a compact summary (reusing
+  `core/quiet-result.sh`, the same summarizer the Claude Code adapter and MCP
+  proxy use). Small and non-bash results pass through. Validated against the real
+  OpenCode plugin API (100 KB → 552-char summary; small + non-bash untouched) and
+  with a local model (qwen2.5-coder:7b via Ollama). Node-gated test in the suite;
+  install via `.opencode/plugin/`.
+
 ## [1.20.0] — 2026-06-25
 
 ### Added

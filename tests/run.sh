@@ -386,5 +386,21 @@ PD=$(mktemp -d)
 ( QUIET_LOG_DIR="$PD"; quiet_prune ) && pass "quiet_prune second call ok (throttled)" || bad "quiet_prune second call"
 rm -rf "$PD"
 
+echo "== opencode plugin (tool.execute.after) =="
+if command -v node >/dev/null 2>&1; then
+  oct=$(QB_ROOT="$ROOT" node --input-type=module -e '
+    const plugin = (await import(process.env.QB_ROOT + "/adapters/opencode.mjs")).default;
+    const h = await plugin();
+    const big = "line\n".repeat(20000), small = "ok\n";
+    const r1 = { output: big, metadata: {} };   await h["tool.execute.after"]({ tool: "bash" }, r1);
+    const r2 = { output: small, metadata: {} };  await h["tool.execute.after"]({ tool: "bash" }, r2);
+    const r3 = { output: big, metadata: {} };    await h["tool.execute.after"]({ tool: "read" }, r3);
+    process.stdout.write((r1.output.startsWith("[quiet-bash]")?"Q":"q") + (r2.output===small?"P":"p") + (r3.output===big?"P":"p"));
+  ' 2>/dev/null)
+  [ "$oct" = "QPP" ] && pass "opencode plugin: quiets large bash, passes small + non-bash" || bad "opencode plugin behavior ($oct)"
+else
+  echo "  (skipped — node not available)"
+fi
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }

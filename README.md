@@ -9,7 +9,7 @@
 <p align="center">
   <img src="https://img.shields.io/github/stars/yoeld-wix/quiet-bash?style=flat-square&color=1fb588&label=stars" alt="stars">
   <img src="https://img.shields.io/github/v/release/yoeld-wix/quiet-bash?style=flat-square&color=1fb588&label=release" alt="release">
-  <img src="https://img.shields.io/badge/works%20with-7%20agents-1fb588?style=flat-square" alt="works with 7 agents">
+  <img src="https://img.shields.io/badge/works%20with-8%20agents-1fb588?style=flat-square" alt="works with 8 agents">
   <img src="https://img.shields.io/badge/command%20output-99.9%25%20cut-e8836b?style=flat-square" alt="command output 99.9% cut">
   <img src="https://img.shields.io/badge/license-MIT-1fb588?style=flat-square" alt="MIT license">
 </p>
@@ -414,6 +414,21 @@ copilot plugin marketplace add yoeld-wix/quiet-bash
 
 Then add a `preToolUse` hook in `.github/hooks/quiet-bash.json` running
 `adapters/copilot.sh` (or `./install.sh copilot`).
+
+### OpenCode
+
+OpenCode loads a native plugin via its `tool.execute.after` hook. Copy or symlink
+the adapter into your project's plugin dir:
+
+```bash
+mkdir -p .opencode/plugin
+ln -s "$(pwd)/adapters/opencode.mjs" .opencode/plugin/quiet-bash.mjs
+```
+
+It quiets large `bash` tool results (spill + summary, reusing the same
+`core/quiet-result.sh` summarizer); small and non-bash results pass through.
+Validated against OpenCode's plugin API and a local model (qwen2.5-coder via
+Ollama). Requires `bash` + `jq` on PATH.
 
 ### Cursor, Aider, Windsurf, Cline, or any shell (universal)
 
