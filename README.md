@@ -126,6 +126,28 @@ counts each output once, but an agent is stateless and **re-sends it every later
 so the actual token-bill saving runs higher — and for the operations that *do* fire, the
 cut is the measured **94–99.9 %** above. Reproduce on your own history: `bench/session-savings.py`.
 
+### Live agent A/B — does it actually lower the bill?
+
+We also ran a real headless Claude Code benchmark ([`bench/agentic-long.sh`](bench/agentic-long.sh),
+Haiku 4.5, **n=4**): one long task driving **10 sequential verbose commands across ~11 turns**,
+with vs without quiet-bash, measuring the real cumulative input tokens and cost.
+
+| arm | cumulative input | cost |
+|---|--:|--:|
+| baseline | 74,121 tok | $0.178 |
+| quiet-bash | 68,199 tok | $0.152 |
+
+**~8 % fewer input tokens, ~6–15 % lower cost** — modest, real, and *noisy* (one run was a wash;
+input is the steadier estimate). On **short** tasks it's ~flat: the fixed system-prompt + tool +
+`CLAUDE.md` overhead dominates and there aren't enough turns to compound, and Claude Code already
+truncates huge tool output. The honest takeaway: **quiet-bash's cut is huge per-operation (94–99.9 %)
+but single-digit-to-low-double-digit per session, concentrated in long, log-heavy work.** Not a 30 %+
+across-the-board win.
+
+> ⚠️ This benchmark also caught a real bug: quiet-bash's command rewrite was a **no-op on Claude
+> Code v2.1.x** until **v1.22.1** (Claude Code drops a PreToolUse `updatedInput` unless the hook also
+> returns `permissionDecision: "allow"`). All numbers here are post-fix.
+
 ### Output side too — faster *and* cheaper (measured A/B)
 
 <p align="center">

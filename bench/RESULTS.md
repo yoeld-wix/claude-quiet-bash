@@ -32,3 +32,17 @@ are measured and reproducible; the session % is this multiplication, nothing mor
 One-time floor (not counting per-turn re-send, which raises it). The
 ~99% per-op cut is measured separately by bench/run.sh.
 ```
+
+## Live agent A/B — long session (n=4)
+
+```
+# quiet-bash LONG-session benchmark — mean per run
+| arm | cumulative input tok | cost $ | turns | time s | runs |
+|---|--:|--:|--:|--:|--:|
+| baseline | 74,121 | 0.1782 | 11 | 46 | 4 |
+| quiet-bash | 68,199 | 0.1519 | 12 | 43 | 4 |
+
+**quiet-bash vs baseline: cumulative input +8.0%, cost +14.8%** (negative = quiet-bash lower).
+```
+
+High run-to-run variance (agent behaviour varies): input ~8% is the steadier estimate; cost 6–15% is noisy. Short-task A/B (bench/agentic.sh) was ~flat — fixed overhead dominates. Numbers are post-v1.22.1 (the fix that made the rewrite actually apply).
