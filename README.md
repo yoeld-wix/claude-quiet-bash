@@ -124,6 +124,33 @@ results → more context stays cached) and **preserves debuggability** — on
 failure it still surfaces the last 40 lines inline, and small `git diff`/`show`/
 `log` output is shown as normal.
 
+### Output side too — faster *and* cheaper (measured A/B)
+
+The hooks cut **input**. Two opt-in guidance pieces cut **output** — the half
+priced **3–5×** input and generated **serially** (the latency bottleneck).
+Measured in subagent A/Bs (N=5):
+
+| Lever | Effect | No regression? |
+|---|--:|---|
+| `Concise` output style | **~10% faster**, ~10–15% less output | content preserved |
+| `minimal-change` skill | **~45% less code** | correctness preserved |
+| **Both, on a coding turn** | **~30% → ~49% faster, ~16% fewer tokens** | suppresses scope-creep |
+
+<sub>Per-operation input cuts and these output A/Bs are **measured**; the
+session-level ~30% is **modeled** (no single end-to-end benchmark run yet).</sub>
+
+### vs ponytail — they stack, not compete
+
+| | quiet-bash | [ponytail](https://github.com/DietrichGebert/ponytail) |
+|---|---|---|
+| Attacks | **input** (what re-enters context) | **output** (code the model writes) |
+| Mechanism | mechanical hooks/proxy — **lossless** | behavioral rules/prompt |
+| Savings | 90–99.9% per op *(measured)*, ~30% session *(modeled)* | ~54% less code, ~20% cost, ~27% time *(their benchmark)* |
+| Best for | log/read-heavy sessions | code-generation-heavy sessions |
+
+Disjoint cost sources → **run both for full input + output coverage.** Full
+field map: [Comparison](docs/comparison.md).
+
 ## What it covers
 
 | Command shape | Behaviour |
