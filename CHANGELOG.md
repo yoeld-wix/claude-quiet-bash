@@ -11,9 +11,10 @@ All notable changes to this project are documented here. Format follows
   byte-exact payload and replaces the result with a compact summary (reusing
   `core/quiet-result.sh`, the same summarizer the Claude Code adapter and MCP
   proxy use). Small and non-bash results pass through. Validated against the real
-  OpenCode plugin API (100 KB → 552-char summary; small + non-bash untouched) and
-  with a local model (qwen2.5-coder:7b via Ollama). Node-gated test in the suite;
-  install via `.opencode/plugin/`.
+  OpenCode plugin API (100 KB → 552-char summary; small + non-bash untouched).
+  Node-gated test in the suite; install via `.opencode/plugin/`. (opencode↔Ollama
+  chat was confirmed live, but a local 7b model didn't reliably emit tool calls to
+  trigger the hook end-to-end — a model limitation, not the adapter.)
 
 ## [1.20.0] — 2026-06-25
 

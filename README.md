@@ -427,8 +427,10 @@ ln -s "$(pwd)/adapters/opencode.mjs" .opencode/plugin/quiet-bash.mjs
 
 It quiets large `bash` tool results (spill + summary, reusing the same
 `core/quiet-result.sh` summarizer); small and non-bash results pass through.
-Validated against OpenCode's plugin API and a local model (qwen2.5-coder via
-Ollama). Requires `bash` + `jq` on PATH.
+Validated against OpenCode's real `tool.execute.after` plugin API (100 KB →
+552-char summary). Requires `bash` + `jq` on PATH. (Note: a live run needs a
+model that reliably emits tool calls — small local models over Ollama's
+OpenAI-compatible endpoint may text-dump tool calls instead of invoking them.)
 
 ### Cursor, Aider, Windsurf, Cline, or any shell (universal)
 
