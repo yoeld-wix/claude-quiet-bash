@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.19.0] — 2026-06-25
+
+### Added
+- **`curl` network-fetch layer.** A large `curl` response body floods context —
+  and JSON API responses are often minified to one line (head/tail useless). The
+  layer spills the full response, then: JSON → collapsed preview via quiet-json
+  (handles minified); large non-JSON → head+tail + grep pointer; small → inline.
+  Skips `-o`/`-O` (writes a file), `-I`/`--head` (headers only), and piped/
+  redirected/`$(…)` forms. Adversarial subagent review caught + fixed: regex
+  tightened so `echo curl`/`which curl` don't mis-fire and `/usr/bin/curl`
+  does match; `mv` guarded so a rename failure falls back to head+tail instead
+  of orphaning the body (preserves losslessness). `grep`/`rg` still untouched.
+
 ## [1.18.0] — 2026-06-25
 
 ### Added

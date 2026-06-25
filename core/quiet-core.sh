@@ -168,6 +168,32 @@ exit \$__st
 WRAP
 }
 
+# Network fetch (curl): large API responses are a context sink, and JSON ones
+# are often minified to a single line (head/tail useless). Spill full; collapse
+# JSON via quiet-json; else head+tail. Small responses pass inline. Lossless.
+_quiet_wrap_curl() {
+  cat <<WRAP
+__log=\$(mktemp "${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}XXXXXX")
+{
+$1
+} >"\$__log" 2>&1
+__st=\$?
+__by=\$(wc -c <"\$__log" | tr -d ' ')
+if [ "\$__by" -le ${QUIET_JSON_MIN_BYTES} ]; then
+  cat "\$__log"
+elif command -v jq >/dev/null 2>&1 && jq -e . "\$__log" >/dev/null 2>&1 && mv "\$__log" "\$__log.json" 2>/dev/null; then
+  echo "[curl returned \$__by bytes of JSON -> \$__log.json | collapsed below; query: ${QUIET_CORE_DIR}/quiet-query.sh \$__log.json keys]"
+  "${QUIET_CORE_DIR}/quiet-json.sh" "\$__log.json"
+else
+  __ln=\$(wc -l <"\$__log" | tr -d ' ')
+  echo "[curl returned \$__by bytes / \$__ln lines -> \$__log | head+tail below; grep that file for the rest]"
+  head -n 15 "\$__log"
+  "${QUIET_CORE_DIR}/quiet-tail.sh" "\$__log" 25 2>/dev/null || tail -n 25 "\$__log"
+fi
+exit \$__st
+WRAP
+}
+
 # ── Summarize a large tool RESULT (for PostToolUse-style adapters) ───────────
 # Given the textual payload of a tool result (and the tool name), prints a
 # compact replacement summary and returns 0; returns 1 to pass through (small,
@@ -290,6 +316,19 @@ quiet_rewrite() {
   if [[ $cmd != *'|'* && $cmd != *'>'* && $cmd != *'$('* && $cmd != *'`'* && $cmd != *-exec* ]] \
      && { [[ $cmd =~ $lsr_re ]] || [[ $cmd =~ $tree_re ]] || [[ $cmd =~ $find_re ]]; }; then
     _quiet_wrap_search "$cmd"
+    return 0
+  fi
+
+  # ── network-fetch path: curl returning a large body floods context ──
+  # Skip piped/redirected/$(…); skip -o/-O (writes a file, no stdout) and -I/
+  # --head (headers only, small). Small responses still pass through inline.
+  # Require a trailing space (so `echo curl`/`which curl`/bare `curl` don't match)
+  # and allow a leading `/` (so `/usr/bin/curl` matches), mirroring verbose_re.
+  local curl_re='(^|[[:space:];&|(/])curl[[:space:]]'
+  local curlfile_re='(^|[[:space:]])(-o|--output|-O|--remote-name|-I|--head)([[:space:]]|$)'
+  if [[ $cmd != *'|'* && $cmd != *'>'* && $cmd != *'$('* && $cmd != *'`'* ]] \
+     && [[ $cmd =~ $curl_re ]] && ! [[ $cmd =~ $curlfile_re ]]; then
+    _quiet_wrap_curl "$cmd"
     return 0
   fi
 

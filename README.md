@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v1.18.0-1fb588" alt="release">
+  <img src="https://img.shields.io/badge/release-v1.19.0-1fb588" alt="release">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
   <img src="https://img.shields.io/badge/works%20with-7%20agents-1fb588" alt="works with 7 agents">
   <img src="https://img.shields.io/badge/command%20output-−99.9%25-e8836b" alt="command output reduced 99.9%">
@@ -138,6 +138,7 @@ failure it still surfaces the last 40 lines inline, and small `git diff`/`show`/
 | **Large source files** (`cat`/`Read` of a `.py`/`.ts`/`.go`/`.rs`/`.java`/`.rb`/`.c`/… file > 30 KB) | Signature outline: imports + class/function/method signatures with bodies elided, each with the exact line range to expand (`Read <file> offset=S limit=N`). File untouched on disk. < 3 symbols → falls back to head/tail. |
 | **`gh` CI logs / PR diffs** (`gh run view … --log`, `gh pr diff`) | Full output spilled; head+tail preview + grep pointer. Content preserved on disk. Piped/redirected/`$(…)` forms pass through. |
 | **Recursive listings** (`ls -R`, `tree`, `find <path>`) | > 60 lines → first 40 + count + log path; full listing on disk. `find -exec`/`$(…)` and `grep`/`rg` left alone. |
+| **`curl` responses** (`curl <url>`, not `-o`/`-I`/piped/`$(…)`) | > 25 KB → JSON collapses via the JSON preview (handles minified), else head+tail + log path. Small responses inline. Full body on disk. |
 | everything else (`ls`, `cat`, `grep`, `git status`, small `gh …`, …) | Passed through unchanged. |
 
 Already-bounded commands (those with `--stat`, `--oneline`, a pipe to

@@ -38,6 +38,17 @@ done
 quiet_rewrite 'files=$(find src -name x)' >/dev/null && bad "cmd-subst find should pass through" || pass "cmd-subst find passes through"
 quiet_rewrite 'd=$(gh pr diff 1)' >/dev/null && bad "cmd-subst gh should pass through" || pass "cmd-subst gh passes through"
 
+echo "== core: curl layer =="
+for c in "curl https://api.example.com/data" "curl -s https://x/api" "curl -X POST https://x -d @body" \
+         "/usr/bin/curl https://x"; do
+  if quiet_rewrite "$c" >/dev/null; then pass "wrap: $c"; else bad "should wrap: $c"; fi
+done
+for c in "curl https://x | jq ." "curl -o out.json https://x" "curl -O https://x" "curl -I https://x" \
+         "curl --head https://x" "curl https://x > out.json" "echo curl" "which curl" "man curl"; do
+  if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
+done
+quiet_rewrite 'd=$(curl https://x)' >/dev/null && bad "cmd-subst curl should pass through" || pass "cmd-subst curl passes through"
+
 echo "== adapters: output shape for 'yarn test' + passthrough for 'ls -la' =="
 EV='{"tool_input":{"command":"yarn test"}}'
 PE='{"tool_input":{"command":"ls -la"}}'
