@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v1.16.2-1fb588" alt="release">
+  <img src="https://img.shields.io/badge/release-v1.17.0-1fb588" alt="release">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
   <img src="https://img.shields.io/badge/works%20with-7%20agents-1fb588" alt="works with 7 agents">
   <img src="https://img.shields.io/badge/command%20output-−99.9%25-e8836b" alt="command output reduced 99.9%">
@@ -260,6 +260,20 @@ Works for **any** MCP client (Claude Code, Codex, Cursor, …) since it operates
 the transport layer. Lossless; tune with `QUIET_RESULT_MIN_BYTES`. Requires
 `node` (+ `bash`/`jq` for the summarizer). Buffers each result to measure size,
 so it's for request/response servers, not incremental streaming.
+
+### Bonus: the `Concise` output style (faster *and* cheaper output)
+
+quiet-bash's hooks shrink the *input* side (re-sent tool output, file reads).
+The plugin also ships a Claude Code **output style** (`output-styles/concise.md`)
+for the *output* side — the half priced **3–5× higher** and generated **serially**
+(so it's the latency bottleneck). It steers Claude to lead with the answer and
+cut preamble/filler **without dropping detail** (`keep-coding-instructions: true`,
+explicit no-loss guardrails).
+
+In a 10-agent A/B it measured **~10% faster responses** (median 4.0 s vs 4.5 s)
+and ~10–15% smaller output, **with no content lost**. It's **opt-in** (it won't
+hijack your style): enable via `/config` → **Output style** → **Concise**, or set
+`"outputStyle": "Concise"` in settings.
 
 ## Supported agents
 

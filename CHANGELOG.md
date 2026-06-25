@@ -3,6 +3,22 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.17.0] — 2026-06-25
+
+### Added
+- **`Concise` output style** (`output-styles/concise.md`) — attacks the *output*
+  side (the half quiet-bash's hooks never touched): output tokens are billed
+  3–5× input and generated serially, so they're the latency bottleneck. The
+  style leads with the answer and cuts preamble/filler **without dropping detail**
+  (`keep-coding-instructions: true` + explicit no-loss guardrails). A 10-agent
+  A/B measured **~10% faster responses** (median 4.0 s vs 4.5 s) and ~10–15%
+  smaller output, with no content lost. Opt-in via `/config` → Output style →
+  Concise (it does not force-override your style).
+
+  (A `parallel-work` skill was prototyped and dropped: a 10-agent A/B showed the
+  model already parallelizes independent reads by default, so its headline
+  guidance was redundant.)
+
 ## [1.16.2] — 2026-06-24
 
 ### Changed

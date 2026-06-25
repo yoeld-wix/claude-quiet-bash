@@ -336,6 +336,15 @@ printf '%s' "$out" | grep -qE 'same line  \(x3\)' && pass "quiet-tail folds cons
 [ -z "$("$QT" "$TT/nope" 40)" ] && pass "quiet-tail missing file → empty" || bad "quiet-tail missing file"
 rm -rf "$TT"
 
+echo "== concise output style =="
+OS="$ROOT/output-styles/concise.md"
+[ -f "$OS" ] && pass "concise output-style exists" || bad "output-style missing"
+head -1 "$OS" | grep -q '^---$' && pass "output-style has frontmatter fence" || bad "output-style frontmatter fence"
+grep -q '^name: Concise$' "$OS" && pass "output-style has name" || bad "output-style name"
+grep -qE '^description: .+' "$OS" && pass "output-style has description" || bad "output-style description"
+grep -q '^keep-coding-instructions: true$' "$OS" && pass "output-style keeps coding instructions" || bad "output-style keep-coding-instructions"
+grep -qi "don't drop substantive content" "$OS" && pass "output-style guards against detail loss" || bad "output-style no-loss guardrail"
+
 echo "== quiet_prune throttle =="
 PD=$(mktemp -d)
 ( QUIET_LOG_DIR="$PD"; quiet_prune; [ -f "$PD/${QUIET_LOG_PREFIX}prune-stamp" ]; ) \
