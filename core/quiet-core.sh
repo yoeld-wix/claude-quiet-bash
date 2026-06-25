@@ -124,6 +124,50 @@ exit \$__st
 WRAP
 }
 
+# Content command (e.g. `gh run view --log`, `gh pr diff`): the agent wants the
+# output, so show it inline when small; when large, spill the full content and
+# surface a cleaned tail + a grep pointer (lossless — full output on disk).
+_quiet_wrap_content() {
+  cat <<WRAP
+__log=\$(mktemp "${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}XXXXXX")
+{
+$1
+} >"\$__log" 2>&1
+__st=\$?
+__ln=\$(wc -l <"\$__log" | tr -d ' ')
+if [ "\$__ln" -le ${QUIET_INLINE_LINE_LIMIT} ]; then
+  cat "\$__log"
+else
+  echo "[output is \$__ln lines -> \$__log | head+tail below; grep that file for the rest]"
+  head -n 15 "\$__log"
+  echo "   ⋮ (\$((__ln - 40)) more lines in \$__log — grep it)"
+  "${QUIET_CORE_DIR}/quiet-tail.sh" "\$__log" 25 2>/dev/null || tail -n 25 "\$__log"
+fi
+exit \$__st
+WRAP
+}
+
+# Recursive listing (ls -R / tree / find <path>): can dump thousands of entries.
+# Spill the full listing and show the first lines + count + a grep pointer
+# (lossless). Head sample (not tail) because listings are read top-down.
+_quiet_wrap_search() {
+  cat <<WRAP
+__log=\$(mktemp "${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}XXXXXX")
+{
+$1
+} >"\$__log" 2>&1
+__st=\$?
+__ln=\$(wc -l <"\$__log" | tr -d ' ')
+if [ "\$__ln" -le ${QUIET_INLINE_LINE_LIMIT} ]; then
+  cat "\$__log"
+else
+  echo "[\$__ln lines -> \$__log | first ${QUIET_FAIL_TAIL_LINES} below; grep/sed that file for the rest]"
+  head -n ${QUIET_FAIL_TAIL_LINES} "\$__log"
+fi
+exit \$__st
+WRAP
+}
+
 # ── Summarize a large tool RESULT (for PostToolUse-style adapters) ───────────
 # Given the textual payload of a tool result (and the tool name), prints a
 # compact replacement summary and returns 0; returns 1 to pass through (small,
@@ -218,6 +262,34 @@ quiet_rewrite() {
       -e 's/(^|[[:space:];&|(])git([[:space:]]+)show/\1git\2show --stat/' \
       -e 's/(^|[[:space:];&|(])git([[:space:]]+)log/\1git\2log --oneline/')
     _quiet_wrap_git "$cmd" "$summary"
+    return 0
+  fi
+
+  # ── gh content path: CI logs / PR diffs are huge but the content matters ──
+  # `gh run view … --log[-failed]` (CI logs) and `gh pr diff` dump large output
+  # the agent reads to debug. Spill + cleaned tail + grep pointer (lossless).
+  # Guard: skip command-substitution / backtick forms (e.g. `X=$(gh pr diff)`) —
+  # rewriting them would corrupt the assignment, not just the output.
+  local ghrun_re='(^|[[:space:];&|(])gh[[:space:]]+run[[:space:]]+view'
+  local ghdiff_re='(^|[[:space:];&|(])gh[[:space:]]+pr[[:space:]]+diff([[:space:]]|$)'
+  local ghlogflag_re='(^|[[:space:]])--log(-failed)?([[:space:]]|$)'   # bounded: not --log-url/--logout
+  if [[ $cmd != *'|'* && $cmd != *'>'* && $cmd != *'$('* && $cmd != *'`'* ]] \
+     && { { [[ $cmd =~ $ghrun_re ]] && [[ $cmd =~ $ghlogflag_re ]]; } || [[ $cmd =~ $ghdiff_re ]]; }; then
+    _quiet_wrap_content "$cmd"
+    return 0
+  fi
+
+  # ── recursive-listing path: ls -R / tree / find <path> can flood context ──
+  # Listings only (NOT grep/rg — a targeted search missing a match is a
+  # regression). Skip: piped/redirected, command-substitution ($(…)/backticks,
+  # which would corrupt an assignment), and find -exec (that runs a tool whose
+  # output is build/test results, not a listing — wrong summary window).
+  local lsr_re='(^|[[:space:];&|(])ls[[:space:]]+-[A-Za-z]*R'
+  local tree_re='(^|[;&|(])[[:space:]]*tree([[:space:]]|$)'   # tree as a command, not `… tree` subcommand
+  local find_re='(^|[[:space:];&|(])find[[:space:]]+[^-]'
+  if [[ $cmd != *'|'* && $cmd != *'>'* && $cmd != *'$('* && $cmd != *'`'* && $cmd != *-exec* ]] \
+     && { [[ $cmd =~ $lsr_re ]] || [[ $cmd =~ $tree_re ]] || [[ $cmd =~ $find_re ]]; }; then
+    _quiet_wrap_search "$cmd"
     return 0
   fi
 

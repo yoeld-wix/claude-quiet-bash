@@ -3,6 +3,25 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [1.18.0] — 2026-06-25
+
+### Added
+- **Two more lossless quieting layers** (extending the stack to new high-volume
+  command categories that previously passed through):
+  - **`gh` CI logs / PR diffs** — `gh run view … --log[-failed]` and `gh pr diff`
+    spill the full output and surface a head+tail preview + grep pointer
+    (content-command treatment, like `git diff`). Big win for fix-CI loops.
+  - **Recursive listings** — `ls -R`, `tree`, `find <path>` spill the full
+    listing and show the first 40 lines + count + drill-in. (Verified lossless:
+    a 2,434-line `find` → 40 shown, full result on disk.) Listings only — `grep`
+    and `rg` are deliberately left alone (a targeted search missing a match is a
+    regression).
+  - Guardrails (found by an adversarial subagent review): bounded `--log` match
+    (not `--log-url`/`--logout`); skip `find -exec` (that's build output, routed
+    to the verbose-build path instead); skip command-substitution `$(…)`/backtick
+    forms (rewriting would corrupt an assignment); `tree` matched only as a
+    command, not a `… tree` subcommand.
+
 ## [1.17.0] — 2026-06-25
 
 ### Added

@@ -24,6 +24,20 @@ for c in "ls -la" "cat f.txt" "grep -r x ." "git status" "gh pr list" "echo hi" 
   if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
 done
 
+echo "== core: gh + recursive-listing layers =="
+for c in "gh run view 123 --log" "gh run view 123 --log-failed" "gh pr diff 45" \
+         "ls -R /tmp" "ls -lR ." "tree src" "find . -name '*.js'" "find packages -type f"; do
+  if quiet_rewrite "$c" >/dev/null; then pass "wrap: $c"; else bad "should wrap: $c"; fi
+done
+for c in "gh pr list" "gh run view 123" "gh pr diff 45 | head" "gh run view 1 --log > out.txt" \
+         "gh run view 1 --logout" "ls -la" "ls" "find --help" "grep -r x ." "rg foo" \
+         "find . -exec chmod 644 {} +" "yarn workspaces tree"; do
+  if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
+done
+# command-substitution must pass through (rewriting would corrupt the assignment)
+quiet_rewrite 'files=$(find src -name x)' >/dev/null && bad "cmd-subst find should pass through" || pass "cmd-subst find passes through"
+quiet_rewrite 'd=$(gh pr diff 1)' >/dev/null && bad "cmd-subst gh should pass through" || pass "cmd-subst gh passes through"
+
 echo "== adapters: output shape for 'yarn test' + passthrough for 'ls -la' =="
 EV='{"tool_input":{"command":"yarn test"}}'
 PE='{"tool_input":{"command":"ls -la"}}'
