@@ -26,29 +26,27 @@
 
 ---
 
-**quiet-bash** is a hook (and universal shell wrapper) that keeps noisy command
-output out of an AI coding agent's context window — so you stop paying to re-send
-logs the agent already read.
+**quiet-bash** keeps the bulky text an AI coding agent doesn't need to re-read out of
+its context window — **losslessly**. An agent is stateless, so every turn re-sends the
+whole transcript; a 600-line test log near the start of a task is re-billed on every
+later turn. quiet-bash spills that text to disk (byte-exact, one `jq`/`grep`/`Read` away)
+and leaves a short summary in its place — so you stop paying to re-send what the agent
+already read.
 
-When the agent runs a known-verbose command — a test run, a build, a buildkite
-invocation, a `docker build`, a `bazel build/test`, or a big `git diff` — the full
-output is redirected to a temp log and the agent sees only a short summary. On
-failure it still gets the tail of the log (and a pointer to grep the rest), so
-nothing important is lost — and that tail is cleaned first: ANSI colors stripped,
-carriage-return progress bars collapsed to their final state, and repeated lines
-folded to `(xN)`. Short, quick commands pass through untouched.
+It quiets the **four things that bloat an agent's context**:
 
-It does the same for **large reads**: a giant `package-lock.json` or a 3,000-line
-source file collapses to a structured preview — a value-folded JSON/YAML summary or
-a **signature outline** of the code — with the full content one `jq` / `Read`-range
-away. A file the agent skims once is never re-sent in full on later turns.
+| What | Without quiet-bash | With quiet-bash |
+|---|---|---|
+| **Verbose commands** — tests, builds, CI, `docker`/`bazel`, big `git diff` | thousands of log lines | one `[ok: …]` line · failure → cleaned tail |
+| **Large file reads** — `package-lock.json`, a 3,000-line source file | the whole file dumped | value-folded JSON/YAML preview or a signature outline |
+| **Large tool results** — MCP, `WebFetch`/`WebSearch`, API payloads | the whole payload | spilled + a collapsed preview |
+| **Long injected prompts** — big `CLAUDE.md`/`AGENTS.md`, hook prompts | re-sent in full every turn | a short stub; reference loads on demand |
 
 ## Highlights
 
-- **99.9% less command output in context** — a test/build/CI log spills to a temp file; the agent sees one summary line, plus the failure tail when it matters. *(measured)*
-- **Large reads collapse too** — a ~300K-token `package-lock.json` → ~660 tokens; a 3,000-line source file → a signature outline. *(measured)*
-- **Lossless** — the full output stays byte-exact on disk, one `jq` / `grep` / `Read`-range away. Nothing is hidden on failure.
-- **Works with 8 agents** — Claude Code · Codex · Gemini · Copilot · Cursor · Aider · OpenCode · or any shell.
+- **Measured, reproducible savings** — command output **−99.9%**, JSON **−99.3%**, source outline **−94.7%** on real files (run [`bench/run.sh`](bench/run.sh) yourself).
+- **Lossless** — the full output stays byte-exact on disk, one `jq` / `grep` / `Read`-range away. Nothing is hidden on failure (you still get the cleaned error tail).
+- **Works with 8 agents** — Claude Code · Codex · Gemini · Copilot · Cursor · Aider · OpenCode · or any shell (via PATH shims / wrapper).
 - **Zero dependencies** — just `bash` + `jq`. No daemon, no model, no network call.
 - **Output side too** *(opt-in)* — a `Concise` style and a `minimal-change` skill trim generated tokens and code; stacks with [ponytail](https://github.com/DietrichGebert/ponytail).
 
@@ -88,7 +86,7 @@ shell, see **[Install](#install)**.
 ## How much it saves
 
 <p align="center">
-  <img src="assets/reductions-by-layer.svg" alt="Reduction by layer (measured): command output -99.9%, JSON -99.3%, listing -98%, source outline -94.7%; output side stacked -49% time, -45% code, -16% tokens" width="860">
+  <img src="assets/reductions-by-layer.svg" alt="Where the tokens go (measured): bar length = raw tokens, glowing sliver = what survives. JSON read 163,064 to 1,062 tok (-99.3%), command output 40,660 to 21 (-99.9%), source outline 40,627 to 2,144 (-94.7%); total -98.7%" width="860">
 </p>
 
 > **On real inputs from a 543-commit production monorepo, quiet-bash cuts the three
