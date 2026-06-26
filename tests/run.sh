@@ -463,5 +463,16 @@ out=$("$QA" "$AF" 'ZZZ'); st=$?
 "$QA" "$AF" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-agg usage exit 2" || bad "quiet-agg usage"
 rm -f "$AF"
 
+echo "== deterministic-first skill =="
+SK="$ROOT/skills/deterministic-first/SKILL.md"
+[ -f "$SK" ] && pass "skill file exists" || bad "skill file exists"
+grep -q '^name: deterministic-first' "$SK" 2>/dev/null && pass "skill name frontmatter" || bad "skill name"
+grep -q '^description: Use before' "$SK" 2>/dev/null && pass "skill description trigger" || bad "skill description"
+for h in 'The decision rule' 'Compose with quiet-bash' 'The no-regression floor'; do
+  grep -qF "$h" "$SK" 2>/dev/null && pass "skill section: $h" || bad "skill section: $h"
+done
+grep -q 'quiet-agg' "$SK" 2>/dev/null && grep -q 'quiet-verify' "$SK" 2>/dev/null \
+  && pass "skill references the verbs" || bad "skill references verbs"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
