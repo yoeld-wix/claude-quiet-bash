@@ -15,7 +15,9 @@ file="${1:-}"; pat="${2:-}"
 [ -n "$file" ] && [ -n "$pat" ] || { echo "usage: quiet-verify.sh <file> <pattern>" >&2; exit 2; }
 [ -r "$file" ] || { echo "quiet-verify: cannot read $file" >&2; exit 2; }
 
-n=$(grep -Ec -- "$pat" "$file" 2>/dev/null || true); n=${n:-0}
+n=$(grep -Ec -- "$pat" "$file" 2>/dev/null); rc=$?
+if [ "$rc" -ge 2 ]; then echo "quiet-verify: invalid pattern or read error" >&2; exit 2; fi
+n=${n:-0}
 if [ "$n" -gt 0 ]; then
   echo "[quiet-verify] OK — $n line(s) match /$pat/ in $file"
   exit 0

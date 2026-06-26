@@ -447,6 +447,7 @@ out=$("$QV" "$VF" 'FAILURE'); st=$?
   && pass "quiet-verify miss: FAIL + exit 1" || bad "quiet-verify miss"
 "$QV" "$VF" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-verify usage exit 2" || bad "quiet-verify usage"
 "$QV" /no/such/file 'x' >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-verify missing-file exit 2" || bad "quiet-verify missing-file"
+"$QV" "$VF" '[' >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-verify invalid regex exit 2" || bad "quiet-verify invalid regex exit 2"
 rm -f "$VF"
 
 echo "== quiet-agg =="
@@ -461,6 +462,9 @@ out=$("$QA" "$AF" 'ZZZ'); st=$?
 { [ "$st" -eq 0 ] && printf '%s' "$out" | grep -q 'no matches'; } \
   && pass "quiet-agg no-match exit 0" || bad "quiet-agg no-match"
 "$QA" "$AF" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-agg usage exit 2" || bad "quiet-agg usage"
+"$QA" "$AF" 'E[0-9]+' 0 >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-agg n=0 exit 2" || bad "quiet-agg n=0 exit 2"
+"$QA" "$AF" 'E[0-9]+' abc >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-agg n=abc exit 2" || bad "quiet-agg n=abc exit 2"
+"$QA" "$AF" '[' >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-agg invalid regex exit 2" || bad "quiet-agg invalid regex exit 2"
 rm -f "$AF"
 
 echo "== deterministic-first skill =="

@@ -20,7 +20,7 @@ the pipeline and let only the answer enter context.
 |---|---|---|
 | **Find** where / which files | open files until you spot it | `rg -l PAT` · `rg -n PAT` · `grep -rln PAT` |
 | **Count** / frequency | read log, tally by eye | `grep -c PAT` · `quiet-agg FILE 'PAT'` |
-| **Extract** fields | copy values out of JSON/text | `jq '.path'` · `awk '{print $2}'` · `grep -oE` |
+| **Extract** fields | copy values out of JSON/text | `jq '.field'` · `awk '{print $2}'` · `grep -oE` |
 | **Parse** structured slices | scan a config visually | `jq` / `yq` / `quiet-query FILE keys` |
 | **Verify** a fact | read output to confirm | `quiet-verify FILE 'PAT'` · `test -f` · exit code |
 | **Repeat** over a set | N near-identical tool calls | `xargs` · `for f in …; do …; done` |
