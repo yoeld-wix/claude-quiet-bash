@@ -48,7 +48,7 @@ It quiets the **four things that bloat an agent's context**:
 - **Lossless** — the full output stays byte-exact on disk, one `jq` / `grep` / `Read`-range away. Nothing is hidden on failure (you still get the cleaned error tail).
 - **Works with 8 agents** — Claude Code · Codex · Gemini · Copilot · Cursor · Aider · OpenCode · or any shell (via PATH shims / wrapper).
 - **Zero dependencies** — just `bash` + `jq`. No daemon, no model, no network call.
-- **Output side too** *(opt-in)* — a `Concise` style and a `minimal-change` skill trim generated tokens and code; stacks with [ponytail](https://github.com/DietrichGebert/ponytail).
+- **Output side too** *(opt-in)* — a `Concise` style plus `minimal-change` (code) and `minimal-docs` (markdown) skills trim generated tokens; stacks with [ponytail](https://github.com/DietrichGebert/ponytail).
 
 ## Quickstart
 
@@ -161,14 +161,15 @@ across-the-board win.
   </picture>
 </p>
 
-The hooks cut **input**. Two opt-in guidance pieces cut **output** — the half priced
+The hooks cut **input**. Three opt-in guidance pieces cut **output** — the half priced
 **3–5×** input and generated **serially** (the latency bottleneck). Measured in
-subagent A/Bs (N=5):
+subagent A/Bs:
 
 | Lever | Effect | No regression? |
 |---|--:|---|
 | `Concise` output style | **~10% faster**, ~10–15% less output | content preserved |
 | `minimal-change` skill | **~45% less code** | correctness preserved |
+| `minimal-docs` skill | **~51% fewer rows, ~43% fewer output tokens** | required detail retained, clarity improved |
 | **Both, on a coding turn** | **~30% → ~49% faster, ~16% fewer tokens** | suppresses scope-creep |
 
 <sub>Input cuts are measured + reproducible ([`bench/run.sh`](bench/run.sh)). These
