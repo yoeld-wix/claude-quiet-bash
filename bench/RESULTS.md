@@ -46,3 +46,16 @@ One-time floor (not counting per-turn re-send, which raises it). The
 ```
 
 High run-to-run variance (agent behaviour varies): input ~8% is the steadier estimate; cost 6–15% is noisy. Short-task A/B (bench/agentic.sh) was ~flat — fixed overhead dominates. Numbers are post-v1.22.1 (the fix that made the rewrite actually apply).
+
+## Model-economy A/B (gate) — how to run
+
+Measures whether downgrading subagents to the cheap tier saves cost with zero
+answer-quality regression. Arms: `baseline` (subagents inherit) vs `A`
+(`CLAUDE_CODE_SUBAGENT_MODEL=haiku`). Each task is graded pass/fail by a
+deterministic regex.
+
+    QB_TARGET="$PWD" QB_MODEL=sonnet QB_REPEATS=3 bench/model-economy.sh
+
+Gate: arm A ships only if **pass-rate == baseline (zero regression)** AND mean
+cost is lower. Paste the printed table here after running. A "DO NOT SHIP"
+verdict (regression, or no savings) is itself a valid, publishable result.
