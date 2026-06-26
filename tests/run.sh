@@ -449,5 +449,19 @@ out=$("$QV" "$VF" 'FAILURE'); st=$?
 "$QV" /no/such/file 'x' >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-verify missing-file exit 2" || bad "quiet-verify missing-file"
 rm -f "$VF"
 
+echo "== quiet-agg =="
+QA="$ROOT/core/quiet-agg.sh"
+AF=$(mktemp); printf 'E101 boom\nE200 nope\nE101 again\nE101 third\nE200 second\n' > "$AF"
+out=$("$QA" "$AF" 'E[0-9]+')
+# E101 appears 3×, E200 2× — E101 must be the first data row
+top=$(printf '%s' "$out" | grep -E 'E[0-9]+' | grep -v '\[quiet-agg\]' | head -1)
+{ printf '%s' "$top" | grep -q 'E101' && printf '%s' "$top" | grep -q '3'; } \
+  && pass "quiet-agg ranks E101(3) first" || bad "quiet-agg ranking"
+out=$("$QA" "$AF" 'ZZZ'); st=$?
+{ [ "$st" -eq 0 ] && printf '%s' "$out" | grep -q 'no matches'; } \
+  && pass "quiet-agg no-match exit 0" || bad "quiet-agg no-match"
+"$QA" "$AF" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-agg usage exit 2" || bad "quiet-agg usage"
+rm -f "$AF"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
