@@ -21,12 +21,18 @@ case "$file" in
   *.json | *.yaml | *.yml)
     json=$(quiet_to_json "$file") || { echo "quiet-conf: cannot parse $file" >&2; exit 2; }
     case "$key" in .*) path="$key" ;; *) path=".$key" ;; esac
-    val=$(printf '%s' "$json" | jq -r "($path) // empty" 2>/dev/null) \
+    t=$(printf '%s' "$json" | jq -r "($path) | type" 2>/dev/null) \
       || { echo "quiet-conf: bad key path: $key" >&2; exit 2; }
-    [ -n "$val" ] || { echo "quiet-conf: key not found: $key" >&2; exit 1; }
+    { [ -n "$t" ] && [ "$t" != "null" ]; } || { echo "quiet-conf: key not found: $key" >&2; exit 1; }
+    if [ "$t" = "object" ] || [ "$t" = "array" ]; then
+      val=$(printf '%s' "$json" | jq -c "$path" 2>/dev/null)
+    else
+      val=$(printf '%s' "$json" | jq -r "$path | tostring" 2>/dev/null)
+    fi
     printf '%s\n' "$val" ;;
   *)
-    line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "$file" 2>/dev/null | head -1)
+    esc=$(printf '%s' "$key" | sed 's/[][(){}.^$*+?|\\]/\\&/g')
+    line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?${esc}=" "$file" 2>/dev/null | head -1)
     [ -n "$line" ] || { echo "quiet-conf: key not found: $key" >&2; exit 1; }
     val=${line#*=}
     case "$val" in

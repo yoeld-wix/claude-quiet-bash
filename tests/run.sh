@@ -604,7 +604,8 @@ out=$("$ROOT/core/quiet-check.sh" "$LOG"); st=$?
 
 echo "== quiet-conf =="
 QCF="$ROOT/core/quiet-conf.sh"
-JF=$(mktemp).json; printf '{"name":"x","scripts":{"test":"jest"},"dependencies":{"react":"18.2.0"}}' > "$JF"
+JF=$(mktemp); mv "$JF" "$JF.json"; JF="$JF.json"
+printf '{"name":"x","scripts":{"test":"jest"},"dependencies":{"react":"18.2.0"}}' > "$JF"
 [ "$("$QCF" "$JF" '.scripts.test')" = "jest" ] && pass "quiet-conf json jq-path" || bad "quiet-conf json jq-path"
 [ "$("$QCF" "$JF" 'dependencies.react')" = "18.2.0" ] && pass "quiet-conf json bare-key (dot prepended)" || bad "quiet-conf json bare-key"
 "$QCF" "$JF" '.nope' >/dev/null 2>&1; [ $? -eq 1 ] && pass "quiet-conf missing key exit 1" || bad "quiet-conf missing key"
@@ -613,7 +614,18 @@ EF=$(mktemp); printf 'FOO=bar\nexport TOKEN="abc123"\n' > "$EF"
 [ "$("$QCF" "$EF" 'TOKEN')" = "abc123" ] && pass "quiet-conf env export+quotes" || bad "quiet-conf env quotes"
 "$QCF" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-conf usage exit 2" || bad "quiet-conf usage"
 "$QCF" /no/such x >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-conf missing-file exit 2" || bad "quiet-conf missing-file"
-rm -f "$JF" "$EF"
+# false/empty/"" values must not be misreported as "not found"
+JF2=$(mktemp); mv "$JF2" "$JF2.json"; JF2="$JF2.json"
+printf '{"flag":false,"empty":"","n":0}' > "$JF2"
+[ "$("$QCF" "$JF2" .flag)" = "false" ] && pass "quiet-conf json false value" || bad "quiet-conf json false value"
+"$QCF" "$JF2" .empty >/dev/null 2>&1; [ $? -eq 0 ] && pass "quiet-conf json empty-string exit 0" || bad "quiet-conf json empty-string exit 0"
+[ "$("$QCF" "$JF2" .n)" = "0" ] && pass "quiet-conf json zero value" || bad "quiet-conf json zero value"
+# syntactically bad jq path → exit 2
+"$QCF" "$JF2" '.a[' >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-conf bad jq path exit 2" || bad "quiet-conf bad jq path exit 2"
+# env key with regex metacharacters must not match the wrong line
+EF2=$(mktemp); printf 'FOO.BAR=wrong\nFOO_BAR=right\n' > "$EF2"
+[ "$("$QCF" "$EF2" 'FOO_BAR')" = "right" ] && pass "quiet-conf env key regex-escaped" || bad "quiet-conf env key regex-escaped"
+rm -f "$JF" "$EF" "$JF2" "$EF2"
 
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
