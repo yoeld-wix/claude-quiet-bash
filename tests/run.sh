@@ -627,5 +627,17 @@ EF2=$(mktemp); printf 'FOO.BAR=wrong\nFOO_BAR=right\n' > "$EF2"
 [ "$("$QCF" "$EF2" 'FOO_BAR')" = "right" ] && pass "quiet-conf env key regex-escaped" || bad "quiet-conf env key regex-escaped"
 rm -f "$JF" "$EF" "$JF2" "$EF2"
 
+echo "== quiet-hist / quiet-blame =="
+QH="$ROOT/core/quiet-hist.sh"; QB="$ROOT/core/quiet-blame.sh"
+out=$("$QH" README.md -n 3); st=$?
+{ [ "$st" -eq 0 ] && [ -n "$out" ]; } && pass "quiet-hist lists commits" || bad "quiet-hist lists"
+"$QH" --pick quiet_rewrite core/quiet-core.sh >/dev/null 2>&1; [ $? -eq 0 ] && pass "quiet-hist pickaxe runs" || bad "quiet-hist pickaxe"
+"$QH" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-hist usage exit 2" || bad "quiet-hist usage"
+"$QH" README.md -n abc >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-hist bad -n exit 2" || bad "quiet-hist bad -n"
+out=$("$QB" README.md 1 3); st=$?
+{ [ "$st" -eq 0 ] && [ -n "$out" ]; } && pass "quiet-blame shows range" || bad "quiet-blame range"
+"$QB" README.md 1 >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-blame usage exit 2" || bad "quiet-blame usage"
+"$QB" README.md a b >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-blame non-numeric exit 2" || bad "quiet-blame non-numeric"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
