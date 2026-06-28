@@ -45,7 +45,7 @@ It quiets the **four things that bloat an agent's context**:
 
 ## Highlights
 
-- **Measured, reproducible savings** — command output **−99.9%**, JSON **−99.3%**, source outline **−94.7%** on real files (run [`bench/run.sh`](bench/run.sh) yourself).
+- **Measured, reproducible savings** — command output **−99.9%**, JSON **−99.3%**, source outline **−94.7%** on real files (run [`bench/run.sh`](bench/run.sh) yourself). A separate model-economy gate ([`bench/model-economy.sh`](bench/model-economy.sh)) measures whether downgrading subagents to a cheaper tier saves cost with zero answer-quality regression.
 - **Lossless** — the full output stays byte-exact on disk, one `jq` / `grep` / `Read`-range away. Nothing is hidden on failure (you still get the cleaned error tail).
 - **Works with 8 agents** — Claude Code · Codex · Gemini · Copilot · Cursor · Aider · OpenCode · or any shell (via PATH shims / wrapper).
 - **Zero dependencies** — just `bash` + `jq`. No daemon, no model, no network call.

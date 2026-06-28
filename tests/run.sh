@@ -488,5 +488,42 @@ LOG=$(printf '%s' "$SPILL_MSG" | grep -oE "${QUIET_LOG_DIR%/}/+${QUIET_LOG_PREFI
 "$ROOT/core/quiet-verify.sh" "$LOG" 'ERROR' >/dev/null && pass "recover: verify hit on spill" || bad "recover: verify"
 "$ROOT/core/quiet-agg.sh" "$LOG" 'WARN|ERROR' | grep -q 'WARN' && pass "recover: agg on spill" || bad "recover: agg"
 
+echo "== model-economy: grading =="
+. "$ROOT/bench/model-economy-tasks.sh"
+# task 0 asserts the answer mentions the known symbol; grade pass/fail on canned answers
+if [ "$(me_grade 0 'The function is exported as quiet_rewrite in quiet-core.sh')" = pass ]; then
+  pass "grade: correct answer for task0 → pass"
+else bad "grade: correct answer for task0 should pass"; fi
+if [ "$(me_grade 0 'I could not find anything relevant')" = fail ]; then
+  pass "grade: wrong answer for task0 → fail"
+else bad "grade: wrong answer for task0 should fail"; fi
+if [ "$(me_grade 99 'anything at all')" = fail ]; then
+  pass "grade: out-of-range index → fail (no silent pass)"
+else bad "grade: out-of-range index must fail, not silently pass"; fi
+# every task must have an index-aligned assertion
+if [ "${#ME_TASK_PROMPTS[@]}" -eq "${#ME_TASK_ASSERTS[@]}" ] && [ "${#ME_TASK_PROMPTS[@]}" -gt 0 ]; then
+  pass "suite: prompts and asserts are aligned and non-empty"
+else bad "suite: prompts/asserts misaligned or empty"; fi
+
+echo "== model-economy: report =="
+me_tmp="$(mktemp)"
+cat > "$me_tmp" <<'JSONL'
+{"arm":"baseline","task":0,"rep":1,"input":1000,"output":50,"cost":0.02,"ms":4000,"turns":3,"pass":true}
+{"arm":"baseline","task":1,"rep":1,"input":1200,"output":60,"cost":0.03,"ms":4200,"turns":3,"pass":true}
+{"arm":"A","task":0,"rep":1,"input":1000,"output":50,"cost":0.01,"ms":3000,"turns":3,"pass":true}
+{"arm":"A","task":1,"rep":1,"input":1200,"output":60,"cost":0.015,"ms":3100,"turns":3,"pass":true}
+JSONL
+me_rep="$(python3 "$ROOT/bench/model-economy-report.py" "$me_tmp")"
+if printf '%s' "$me_rep" | grep -q "ZERO-REGRESSION ✓"; then
+  pass "report: equal pass-rate → zero-regression ✓"
+else bad "report: should report zero-regression when pass-rates match"; fi
+if printf '%s' "$me_rep" | grep -Eq "cost -[0-9]"; then
+  pass "report: cheaper A arm → negative cost delta"
+else bad "report: should show negative cost delta for cheaper arm"; fi
+if printf '%s' "$me_rep" | grep -Eq "arm A:.*→ SHIP"; then
+  pass "report: zero-regression + cheaper → SHIP verdict"
+else bad "report: cheaper zero-regression arm should yield SHIP"; fi
+rm -f "$me_tmp"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
