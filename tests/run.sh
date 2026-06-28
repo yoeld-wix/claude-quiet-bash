@@ -561,6 +561,36 @@ echo "== adapter: duplicate-read dedup =="
   rm -rf "$QUIET_LOG_DIR"
 )
 
+echo "== cache-safety: rendered output is deterministic (never busts the prompt-cache prefix) =="
+# quiet-bash only pays off if its rewrites don't invalidate the cached prefix.
+# A rewrite is cache-safe iff identical input renders byte-identical text (any
+# run-varying content — a timestamp, unstable ordering — would bust the cache and
+# cost MORE). The only allowed variance is the mktemp spill PATH, which is written
+# once per result and never re-rendered; we mask it before comparing.
+(
+  export QUIET_LOG_DIR; QUIET_LOG_DIR=$(mktemp -d)
+  . "$ROOT/core/quiet-core.sh"
+  # 1. command rewrites are byte-identical
+  cs_ok=1
+  for c in "yarn test" "cargo build --release" "git diff" "grep -r foo ." "curl https://x"; do
+    [ "$(quiet_rewrite "$c")" = "$(quiet_rewrite "$c")" ] || cs_ok=0
+  done
+  [ "$cs_ok" = 1 ] && pass "quiet_rewrite renders identical output for identical command" || bad "quiet_rewrite is non-deterministic (cache risk)"
+  # 2. source outline is byte-identical for the same file
+  CSF="$QUIET_LOG_DIR/big.py"
+  { echo "import os"; for i in $(seq 1 600); do echo "def f_$i(a, b): return a"; done; } > "$CSF"
+  o1=$(QUIET_OUTLINE_MIN_BYTES=5000 "$ROOT/core/quiet-outline.sh" "$CSF")
+  o2=$(QUIET_OUTLINE_MIN_BYTES=5000 "$ROOT/core/quiet-outline.sh" "$CSF")
+  [ "$o1" = "$o2" ] && pass "quiet-outline renders identical output for identical file" || bad "quiet-outline is non-deterministic (cache risk)"
+  # 3. result summary is identical once the (inevitably unique) spill path is masked
+  big=$(awk 'BEGIN{for(i=0;i<4000;i++)print "{\"k\":"i",\"v\":\"row\"},"}')
+  mask() { sed -E 's#'"$QUIET_LOG_PREFIX"'result-[A-Za-z0-9]+#SPILL#g'; }
+  s1=$(QUIET_RESULT_MIN_BYTES=5000 quiet_result_summarize "$big" "WebFetch" | mask)
+  s2=$(QUIET_RESULT_MIN_BYTES=5000 quiet_result_summarize "$big" "WebFetch" | mask)
+  [ "$s1" = "$s2" ] && pass "result summary identical modulo spill path (cache-safe)" || bad "result summary varies beyond spill path (cache risk)"
+  rm -rf "$QUIET_LOG_DIR"
+)
+
 echo "== deterministic-first skill =="
 SK="$ROOT/skills/deterministic-first/SKILL.md"
 [ -f "$SK" ] && pass "skill file exists" || bad "skill file exists"
