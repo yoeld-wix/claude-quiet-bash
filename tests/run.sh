@@ -38,6 +38,20 @@ done
 quiet_rewrite 'files=$(find src -name x)' >/dev/null && bad "cmd-subst find should pass through" || pass "cmd-subst find passes through"
 quiet_rewrite 'd=$(gh pr diff 1)' >/dev/null && bad "cmd-subst gh should pass through" || pass "cmd-subst gh passes through"
 
+echo "== core: infra/listing/logdump coverage =="
+for c in "terraform plan" "terraform apply -auto-approve" "helm upgrade x ./chart" "pulumi up" \
+         "ansible-playbook site.yml" "kubectl get pods -A" "kubectl describe pod x" "kubectl logs mypod" \
+         "docker images" "docker ps -a" "docker logs web" "npm ls" "pnpm list" "pip list" "pip freeze" \
+         "pip show requests" "brew list" "journalctl -u nginx"; do
+  if quiet_rewrite "$c" >/dev/null; then pass "wrap: $c"; else bad "should wrap: $c"; fi
+done
+# must pass through: non-verbose subcommands, explicit limits, and assignment-corrupting forms
+for c in "terraform version" "helm version" "kubectl version" "kubectl get pods | head" \
+         "docker logs web > out.txt" "pip show requests | grep Version" "npm ls --help"; do
+  if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
+done
+quiet_rewrite 'pods=$(kubectl get pods)' >/dev/null && bad "cmd-subst kubectl should pass through" || pass "cmd-subst kubectl passes through"
+
 echo "== core: curl layer =="
 for c in "curl https://api.example.com/data" "curl -s https://x/api" "curl -X POST https://x -d @body" \
          "/usr/bin/curl https://x"; do
@@ -338,10 +352,23 @@ quiet_rewrite "cat $OT/big.py | grep def" >/dev/null && bad "piped read should p
 # small source file is left alone
 echo "def tiny(): pass" > "$OT/tiny.py"
 quiet_rewrite "cat $OT/tiny.py" >/dev/null && bad "small file should pass through" || pass "small source read passes through"
-# Native Read path: tool_input.path to a large source file → outline in updatedToolOutput
-# (opt-in path — result quieting is off by default; see the PostToolUse section above)
-export QUIET_RESULT_HOOK=1
+# Result-hook split: the LOSSY/expensive paths (source outlining, MCP collapse)
+# are opt-in; the LOSSLESS dedup stays ON by default. Prove both with the var unset.
 CR="$ROOT/adapters/claude-code-result.sh"
+bigpy_payload=$(jq -n --arg p "$OT/big.py" --rawfile c "$OT/big.py" --arg s "sessSPLIT" \
+  '{session_id:$s, tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
+# (1) source outlining is OFF by default → first read passes through (no outline)
+off1=$(printf '%s' "$bigpy_payload" | env -u QUIET_RESULT_HOOK QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
+printf '%s' "$off1" | jq -r '.hookSpecificOutput.updatedToolOutput' 2>/dev/null | grep -q 'outline' \
+  && bad "source outlining must be off by default" || pass "source outlining off by default"
+# (2) Read-dedup is ON by default → the second identical unchanged read is stubbed sans var
+off2=$(printf '%s' "$bigpy_payload" | env -u QUIET_RESULT_HOOK QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
+printf '%s' "$off2" | grep -q 'unchanged since you read it' \
+  && pass "Read-dedup stays ON by default (split)" || bad "Read-dedup should be on by default"
+
+# Native Read path: tool_input.path to a large source file → outline in updatedToolOutput
+# (opt-in path — outlining is off by default; see the PostToolUse section above)
+export QUIET_RESULT_HOOK=1
 content=$(cat "$OT/big.py")
 payload=$(jq -n --arg p "$OT/big.py" --arg c "$content" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
 ro=$(printf '%s' "$payload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
@@ -358,7 +385,7 @@ go=$(printf '%s' "$gpayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
 printf '%s' "$go" | grep -q 'outline' && bad "Grep result must not be outlined" || pass "Grep result not clobbered by outline"
 # Large NON-source Read (e.g. a .txt) → must pass through untouched (no head/tail, no rewrite)
 { for i in $(seq 1 4000); do echo "log line $i ................................................"; done; } > "$OT/big.txt"
-tpayload=$(jq -n --arg p "$OT/big.txt" --arg c "$(cat "$OT/big.txt")" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
+tpayload=$(jq -n --arg p "$OT/big.txt" --rawfile c "$OT/big.txt" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
 to=$(printf '%s' "$tpayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
 [ -z "$to" ] && pass "large non-source Read passes through untouched" || bad "non-source Read should pass through"
 # Wiring regression: the PostToolUse matcher MUST include Read (else native-Read outlining never fires)
@@ -548,7 +575,7 @@ echo "== adapter: duplicate-read dedup =="
   BIG="$QUIET_LOG_DIR/big.log"
   awk 'BEGIN{for(i=0;i<4000;i++)print "line "i" some filler text to exceed the outline threshold"}' > "$BIG"
   CONTENT=$(cat "$BIG")
-  EV=$(jq -n --arg p "$BIG" --arg t "$CONTENT" --arg s "sessDED" \
+  EV=$(jq -n --arg p "$BIG" --rawfile t "$BIG" --arg s "sessDED" \
         '{session_id:$s, tool_name:"Read", tool_input:{file_path:$p}, tool_response:$t}')
   # first event: pass through (adapter prints nothing)
   o1=$(printf '%s' "$EV" | "$ROOT/adapters/claude-code-result.sh")
@@ -558,6 +585,87 @@ echo "== adapter: duplicate-read dedup =="
   printf '%s' "$o2" | jq -e '.hookSpecificOutput.updatedToolOutput' >/dev/null 2>&1 \
     && printf '%s' "$o2" | grep -q 'unchanged since you read it' \
     && pass "adapter repeat read deduped" || bad "adapter repeat read"
+  rm -rf "$QUIET_LOG_DIR"
+)
+
+echo "== cache-safety: rendered output is deterministic (never busts the prompt-cache prefix) =="
+# quiet-bash only pays off if its rewrites don't invalidate the cached prefix.
+# A rewrite is cache-safe iff identical input renders byte-identical text (any
+# run-varying content — a timestamp, unstable ordering — would bust the cache and
+# cost MORE). The only allowed variance is the mktemp spill PATH, which is written
+# once per result and never re-rendered; we mask it before comparing.
+(
+  export QUIET_LOG_DIR; QUIET_LOG_DIR=$(mktemp -d)
+  . "$ROOT/core/quiet-core.sh"
+  # 1. command rewrites are byte-identical
+  cs_ok=1
+  for c in "yarn test" "cargo build --release" "git diff" "grep -r foo ." "curl https://x"; do
+    [ "$(quiet_rewrite "$c")" = "$(quiet_rewrite "$c")" ] || cs_ok=0
+  done
+  [ "$cs_ok" = 1 ] && pass "quiet_rewrite renders identical output for identical command" || bad "quiet_rewrite is non-deterministic (cache risk)"
+  # 2. source outline is byte-identical for the same file
+  CSF="$QUIET_LOG_DIR/big.py"
+  { echo "import os"; for i in $(seq 1 600); do echo "def f_$i(a, b): return a"; done; } > "$CSF"
+  o1=$(QUIET_OUTLINE_MIN_BYTES=5000 "$ROOT/core/quiet-outline.sh" "$CSF")
+  o2=$(QUIET_OUTLINE_MIN_BYTES=5000 "$ROOT/core/quiet-outline.sh" "$CSF")
+  [ "$o1" = "$o2" ] && pass "quiet-outline renders identical output for identical file" || bad "quiet-outline is non-deterministic (cache risk)"
+  # 3. result summary is identical once the (inevitably unique) spill path is masked
+  big=$(awk 'BEGIN{for(i=0;i<4000;i++)print "{\"k\":"i",\"v\":\"row\"},"}')
+  mask() { sed -E 's#'"$QUIET_LOG_PREFIX"'result-[A-Za-z0-9]+#SPILL#g'; }
+  s1=$(QUIET_RESULT_MIN_BYTES=5000 quiet_result_summarize "$big" "WebFetch" | mask)
+  s2=$(QUIET_RESULT_MIN_BYTES=5000 quiet_result_summarize "$big" "WebFetch" | mask)
+  [ "$s1" = "$s2" ] && pass "result summary identical modulo spill path (cache-safe)" || bad "result summary varies beyond spill path (cache risk)"
+  rm -rf "$QUIET_LOG_DIR"
+)
+
+echo "== command-level dedup (repeat cat of an unchanged file) =="
+(
+  export QUIET_LOG_DIR; QUIET_LOG_DIR=$(mktemp -d)
+  . "$ROOT/core/quiet-core.sh"
+  CF="$QUIET_LOG_DIR/data.txt"; printf 'hello\nworld\n' > "$CF"
+  # first read: pass through (returns 1, records it)
+  quiet_cmd_dedup "sessCMD" "cat $CF" >/dev/null && bad "first cat should pass through" || pass "first cat passes through"
+  # second identical read of unchanged file: deduped → echoes a stub
+  out=$(quiet_cmd_dedup "sessCMD" "cat $CF") \
+    && printf '%s' "$out" | grep -q 'unchanged since you read it' \
+    && pass "repeat cat of unchanged file deduped" || bad "repeat cat dedup"
+  # after the file changes, it must read fresh again
+  printf 'changed\n' >> "$CF"
+  quiet_cmd_dedup "sessCMD" "cat $CF" >/dev/null && bad "changed file should re-read" || pass "changed file re-reads (no stale stub)"
+  # unsafe forms pass through: pipe, redirect, multiple files, glob, no session
+  printf 'a\n' > "$QUIET_LOG_DIR/a"; printf 'b\n' > "$QUIET_LOG_DIR/b"
+  quiet_cmd_dedup "sessCMD" "cat $CF | head" >/dev/null && bad "piped cat dedup" || pass "piped cat passes through"
+  quiet_cmd_dedup "sessCMD" "cat $QUIET_LOG_DIR/a $QUIET_LOG_DIR/b" >/dev/null && bad "multi-file cat dedup" || pass "multi-file cat passes through"
+  quiet_cmd_dedup "" "cat $CF" >/dev/null && bad "no-session dedup" || pass "no-session passes through"
+  # cross-tool: a Read then a cat of the same unchanged file is recognised
+  printf 'x\n' > "$QUIET_LOG_DIR/shared"
+  quiet_dedup_check "sessX" "$QUIET_LOG_DIR/shared" "" "" >/dev/null   # seed via Read path
+  out=$(quiet_cmd_dedup "sessX" "cat $QUIET_LOG_DIR/shared") \
+    && printf '%s' "$out" | grep -q 'unchanged' && pass "cat after Read deduped (shared state)" || bad "cross-tool dedup"
+  rm -rf "$QUIET_LOG_DIR"
+)
+
+echo "== diff-on-reread (opt-in: QUIET_DIFF_REREAD) =="
+(
+  export QUIET_LOG_DIR; QUIET_LOG_DIR=$(mktemp -d)
+  . "$ROOT/core/quiet-core.sh"
+  base=$(awk 'BEGIN{for(i=1;i<=100;i++)print "line "i}')
+  changed=$(printf '%s' "$base" | sed 's/^line 50$/line 50 EDITED/')
+  huge=$(awk 'BEGIN{for(i=1;i<=100;i++)print "totally different content row "i}')
+  # OFF by default → no diff, behaves as pass-through
+  quiet_diff_reread "sD" "/x/f" "$base" >/dev/null && bad "diff should be off by default" || pass "diff-reread off by default"
+  export QUIET_DIFF_REREAD=1
+  # first read → snapshot stored, pass through
+  quiet_diff_reread "sD" "/x/f" "$base" >/dev/null && bad "first read should pass through" || pass "first read snapshots + passes through"
+  # small change re-read → unified diff returned, mentions the edited line
+  out=$(quiet_diff_reread "sD" "/x/f" "$changed") \
+    && printf '%s' "$out" | grep -q 'line 50 EDITED' \
+    && printf '%s' "$out" | grep -q 'changed since you last read it' \
+    && pass "changed re-read returns a unified diff" || bad "diff-reread small change"
+  # identical re-read → no diff (let dedup handle it)
+  quiet_diff_reread "sD" "/x/f" "$changed" >/dev/null && bad "identical re-read should pass through" || pass "identical re-read passes through"
+  # massive change (diff not smaller than full) → pass full through
+  quiet_diff_reread "sD" "/x/f" "$huge" >/dev/null && bad "huge change should show full" || pass "huge change shows full (diff not smaller)"
   rm -rf "$QUIET_LOG_DIR"
 )
 

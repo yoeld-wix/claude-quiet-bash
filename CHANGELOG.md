@@ -3,16 +3,16 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.23.0] — 2026-06-28
 
 ### Changed
-- **Result quieting (Read/MCP/Web `PostToolUse`) is now opt-in on Claude Code.** A 20-run
-  agentic benchmark (`bench/RESULTS.md`) found this lever adds cost without a net benefit on
-  typical coding workloads, while the command-output (`PreToolUse` Bash) lever pays off
-  (~10% cheaper, consistent across tasks). The shipped default is now "command-output only";
-  enable result quieting for large-MCP / large-Web-result workloads with `QUIET_RESULT_HOOK=1`.
-  The hook stays wired (`hooks.json` unchanged); the adapter is a no-op pass-through unless the
-  variable is set.
+- **Expensive result quieting is now opt-in on Claude Code (lossless dedup stays on).** A
+  20-run agentic benchmark (`bench/RESULTS.md`) found the *lossy/expensive* `PostToolUse`
+  paths — source-file **outlining** and **MCP/Web result collapsing** — add cost without a
+  net benefit on typical coding workloads, while the command-output (`PreToolUse` Bash) lever
+  pays off (~10% cheaper). Those paths are now opt-in via `QUIET_RESULT_HOOK=1`. The
+  **lossless** parts of the hook stay **on by default**: duplicate-read dedup (unchanged
+  repeat reads → stub) and the opt-in diff-on-reread. `hooks.json` is unchanged.
 
 ### Added
 - **Cache-aware agentic benchmark.** `bench/agentic.sh` is now a 3-arm A/B/C (baseline /
@@ -20,7 +20,28 @@ All notable changes to this project are documented here. Format follows
   split, cache-hit %, and cost σ — instead of a raw input-token sum that over-weights
   `cache_read` (billed ~0.1×) and turn-count noise.
 - Regression tests asserting collapsed tool results stay byte-exact and `quiet-query`-able
-  (lossless → the agent drills in, never re-fetches).
+  (lossless → the agent drills in, never re-fetches), plus a **cache-safety** test asserting
+  rewrites render byte-identical output for identical input (so nothing silently busts the
+  prompt-cache prefix).
+- **Wider command coverage** (lossless): infra/build tools (`terraform`/`tofu`/`pulumi`
+  plan/apply, `helm`, `ansible-playbook`), listings (`kubectl get/describe`, `docker
+  images/ps`, `npm/pnpm/yarn ls`, `pip list/freeze/show`, `brew list`), and log dumps
+  (`kubectl logs`, `docker logs`, `journalctl`, `dmesg`).
+- **Command-level dedup**: a plain repeat read of an unchanged file (`cat`/`head`/`tail`)
+  is stubbed (content already in context), mirroring the Read-tool dedup and sharing its
+  session state. Lossless.
+- **Diff-on-reread (opt-in, `QUIET_DIFF_REREAD=1`)**: when a changed file is re-read, show a
+  unified diff vs the last read instead of the whole file (full file unchanged on disk). Off
+  by default; requires the result hook (`QUIET_RESULT_HOOK=1`). Experimental — enabling it by
+  default awaits an edit-heavy agentic gate.
+- **Deterministic-first toolset** (#4, #6): pipe for the answer instead of reading the
+  haystack — `quiet-check` (verdict + tally), `quiet-wait` (one-shot poll), `quiet-conf`
+  (config value), `quiet-hist`/`quiet-blame` (git archaeology), duplicate-read dedup, and
+  recursive `grep`/`rg` collapse.
+- **Context enrichment** (#8): `quiet-env` (one-shot environment digest) and `quiet-map`
+  (repo file-size / churn / tree map), with an enrichment benchmark.
+- **Model-economy benchmark gate** (#5): measures whether downgrading subagents to a cheaper
+  tier saves cost with zero answer-quality regression (recorded verdict: inconclusive).
 
 ## [1.22.1] — 2026-06-25
 
