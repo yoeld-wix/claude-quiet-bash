@@ -9,7 +9,7 @@ import sys, json, collections, statistics
 rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 by = collections.defaultdict(lambda: collections.defaultdict(list))
 for r in rows:
-    for k in ("input", "output", "cost", "ms"):
+    for k in ("input", "output", "cost", "ms", "turns"):
         by[r["arm"]][k].append(r[k])
     by[r["arm"]]["pass"].append(1 if r.get("pass") else 0)
 
@@ -22,7 +22,7 @@ print("|---|--:|--:|--:|--:|--:|--:|--:|")
 for a in arms:
     pr = mean(by[a]["pass"]) * 100
     print(f"| {a} | {mean(by[a]['input']):,.0f} | {mean(by[a]['output']):,.0f} | "
-          f"{mean(by[a]['cost']):.4f} | {mean(by[a]['ms'])/1000:.1f} | {mean(by[a].get('turns',[0])) if by[a].get('turns') else 0:.1f} | {pr:.0f}% | {len(by[a]['input'])} |")
+          f"{mean(by[a]['cost']):.4f} | {mean(by[a]['ms'])/1000:.1f} | {mean(by[a]['turns']):.1f} | {pr:.0f}% | {len(by[a]['input'])} |")
 
 base_pr = mean(by["control"]["pass"]) * 100 if by["control"]["input"] else None
 base_cost = mean(by["control"]["cost"]) if by["control"]["input"] else None

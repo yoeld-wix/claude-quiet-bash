@@ -706,6 +706,7 @@ JSONL
 frep=$(python3 "$ROOT/bench/enrichment-report.py" "$ft")
 printf '%s' "$frep" | grep -q 'ZERO-REGRESSION ✓' && pass "report: equal pass-rate → zero-regression" || bad "report zero-regression"
 printf '%s' "$frep" | grep -Eq 'cost -[0-9]' && pass "report: cheaper arm shows negative cost delta" || bad "report cost delta"
+printf '%s' "$frep" | grep -q ' 6.0 ' && pass "report: turns column populated (not 0.0)" || bad "report turns column"
 rm -f "$ft"
 
 echo
