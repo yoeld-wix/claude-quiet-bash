@@ -74,10 +74,14 @@ if [ "$tool" = "Read" ]; then
     fi
   fi
   if [ -z "$summary" ]; then
-    # Not outlined → would re-send full content. If this is an unchanged repeat
-    # read in the same session, replace it with a stub (content is already above).
+    # Not outlined → would re-send full content. Try, in order:
+    #  1. unchanged repeat read  → stub (content already above)
+    #  2. changed re-read        → unified diff since last read (opt-in, off by
+    #     default via QUIET_DIFF_REREAD; full file unchanged on disk)
     if dstub=$(quiet_dedup_check "$sid" "$path" "$off" "$lim"); then
       summary="$dstub"
+    elif ddiff=$(quiet_diff_reread "$sid" "$path" "$text"); then
+      summary="$ddiff"
     else
       exit 0   # non-source / small / first-seen Read → pass through untouched
     fi

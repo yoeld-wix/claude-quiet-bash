@@ -20,7 +20,20 @@ All notable changes to this project are documented here. Format follows
   split, cache-hit %, and cost σ — instead of a raw input-token sum that over-weights
   `cache_read` (billed ~0.1×) and turn-count noise.
 - Regression tests asserting collapsed tool results stay byte-exact and `quiet-query`-able
-  (lossless → the agent drills in, never re-fetches).
+  (lossless → the agent drills in, never re-fetches), plus a **cache-safety** test asserting
+  rewrites render byte-identical output for identical input (so nothing silently busts the
+  prompt-cache prefix).
+- **Wider command coverage** (lossless): infra/build tools (`terraform`/`tofu`/`pulumi`
+  plan/apply, `helm`, `ansible-playbook`), listings (`kubectl get/describe`, `docker
+  images/ps`, `npm/pnpm/yarn ls`, `pip list/freeze/show`, `brew list`), and log dumps
+  (`kubectl logs`, `docker logs`, `journalctl`, `dmesg`).
+- **Command-level dedup**: a plain repeat read of an unchanged file (`cat`/`head`/`tail`)
+  is stubbed (content already in context), mirroring the Read-tool dedup and sharing its
+  session state. Lossless.
+- **Diff-on-reread (opt-in, `QUIET_DIFF_REREAD=1`)**: when a changed file is re-read, show a
+  unified diff vs the last read instead of the whole file (full file unchanged on disk). Off
+  by default; requires the result hook (`QUIET_RESULT_HOOK=1`). Experimental — enabling it by
+  default awaits an edit-heavy agentic gate.
 
 ## [1.22.1] — 2026-06-25
 
