@@ -868,5 +868,16 @@ after=$(cd "$PR" && cat f.txt); [ "$before" = "$after" ] && pass "quiet-patch FA
 NGP=$(mktemp -d); ( cd "$NGP" && printf 'x' | "$QP" >/dev/null 2>&1; [ $? -eq 2 ] ) && pass "quiet-patch non-git → exit 2" || bad "quiet-patch non-git"
 rm -rf "$PR" "$NGP" "$PP"
 
+echo "== bench: dfirst-audit =="
+DA="$ROOT/bench/dfirst-audit.py"
+FX="$ROOT/tests/fixtures/transcripts"
+python3 "$DA" "$FX/probe.jsonl" | grep -q 'quiet-env | 1 | 2' && pass "audit P4 detects probes" || bad "audit P4"
+python3 "$DA" "$FX/reread.jsonl" | grep -q 'quiet-dedup | 1 | 1' && pass "audit P2 detects re-read" || bad "audit P2"
+cl=$(python3 "$DA" "$FX/clean.jsonl")
+{ printf '%s' "$cl" | grep -q 'quiet-env | 0 | 0' && printf '%s' "$cl" | grep -q 'quiet-dedup | 0 | 0'; } && pass "audit clean → no hits" || bad "audit clean"
+BADJ=$(mktemp); printf 'not json\n{"message":{"content":[]}}\n' > "$BADJ"
+python3 "$DA" "$BADJ" >/dev/null 2>&1 && pass "audit tolerates malformed lines" || bad "audit malformed"
+rm -f "$BADJ"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
