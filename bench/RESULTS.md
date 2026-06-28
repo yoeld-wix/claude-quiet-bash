@@ -45,7 +45,7 @@ One-time floor (not counting per-turn re-send, which raises it). The
 **quiet-bash vs baseline: cumulative input +8.0%, cost +14.8%** (negative = quiet-bash lower).
 ```
 
-High run-to-run variance (agent behaviour varies): input ~8% is the steadier estimate; cost 6–15% is noisy. Short-task A/B (bench/agentic.sh) was ~flat — fixed overhead dominates. Numbers are post-v1.22.1 (the fix that made the rewrite actually apply).
+High run-to-run variance (agent behaviour varies): input ~8% is the steadier estimate; cost 6–15% is noisy. An earlier short-task A/B looked ~flat when the tasks didn't hit large inputs; the 3-arm run below — tasks deliberately pointed at large inputs — shows ~21% cost cut, so the saving tracks how much bulky output the tasks actually produce. Numbers are post-v1.22.1 (the fix that made the rewrite actually apply).
 
 ## Model-economy A/B (gate) — how to run
 
@@ -95,3 +95,29 @@ repo/task-mix, and may cost more. A conclusive verdict would need many more
 repeats, cache-state control (run order affects cache_read vs cache_creation
 pricing), and the selective-frontmatter version (downgrade only search/summary
 agents) rather than the blunt all-subagents proxy.
+
+## Live agent A/B/C — short tasks, 3-arm (n=8)
+
+Isolating quiet-bash's two levers on read-only tasks against a repo with large
+inputs (`astra-migrations-core`: 652 KB lockfile, 162 KB source), `claude-haiku-4-5`,
+2 repeats × 4 tasks = 8 runs/arm. Reproduce with `bench/agentic.sh` (see header).
+
+```
+| arm | input tok | cost $ | time s | runs |
+|---|--:|--:|--:|--:|
+| A baseline (no hooks)        | 153,118 | 0.0813 | 14.0 | 8 |
+| B cmd-only (Bash)            | 113,309 | 0.0633 | 11.5 | 8 |
+| C full (Bash + Read/MCP)     | 148,444 | 0.0644 | 16.1 | 8 |
+
+vs baseline (negative = cheaper):
+  B cmd-only: input -26.0%, cost -22.2%
+  C full:     input  -3.1%, cost -20.8%
+```
+
+Finding: both options cut cost ~21%, but the **command-output lever (B) does
+nearly all of it**. Adding Read/MCP result quieting (C) didn't improve input on
+these tasks and slightly raised it vs B — task 2 reads a file then asks for its
+exported names, so quieting that Read makes the agent re-read it (note C's higher
+time). On read-heavy tasks, Read-quieting wants a "don't quiet what was just
+asked about" heuristic. n=8 and agent behaviour is noisy — treat the percentages
+as directional, not exact. Run: 2026-06-28.

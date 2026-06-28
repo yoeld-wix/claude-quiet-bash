@@ -2,10 +2,14 @@
 #
 # Real multi-arm agentic benchmark for quiet-bash (input side).
 #
-# Runs a headless Claude Code session on real read-only tasks, WITH and WITHOUT
-# quiet-bash's hooks, and measures the real input tokens / cost / time each arm
-# consumes. quiet-bash reduces the context that gets re-sent, so the quiet-bash
-# arm should spend fewer input tokens (and less $) for the same answers.
+# Runs a headless Claude Code session on real read-only tasks across three arms,
+# isolating quiet-bash's two levers, and measures the real input tokens / cost /
+# time each consumes:
+#   A baseline  — no hooks
+#   B cmd-only  — command-output quieting only (PreToolUse Bash)
+#   C full      — command-output + Read/MCP result quieting (Pre + PostToolUse)
+# quiet-bash reduces the context that gets re-sent, so B and C should spend fewer
+# input tokens (and less $) than A for the same answers.
 #
 # Tasks are read-only and dependency-free (git log, large file reads) so they
 # trigger quiet-bash's quieting without mutating the target repo or needing a build.
@@ -21,15 +25,16 @@ REPEATS="${QB_REPEATS:-2}"
 OUT="${QB_OUT:-$ROOT/bench/agentic-runs.jsonl}"
 : > "$OUT"
 
-# settings: baseline = no hooks; quiet = quiet-bash Pre/PostToolUse hooks
-BASE_SET="$(mktemp)"; printf '{}\n' > "$BASE_SET"
-QUIET_SET="$(mktemp)"
-cat > "$QUIET_SET" <<JSON
-{ "hooks": {
-  "PreToolUse":  [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "$ROOT/adapters/claude-code.sh", "timeout": 15 } ] } ],
-  "PostToolUse": [ { "matcher": "Read|mcp__.*|WebFetch|WebSearch", "hooks": [ { "type": "command", "command": "$ROOT/adapters/claude-code-result.sh", "timeout": 15 } ] } ]
-} }
-JSON
+# Three arms, isolating quiet-bash's two levers:
+#   A baseline  = no hooks
+#   B cmd-only  = command-output quieting only (PreToolUse Bash)
+#   C full      = command-output + Read/MCP result quieting (Pre + PostToolUse)
+PRE_HOOK='"PreToolUse":  [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "'"$ROOT"'/adapters/claude-code.sh", "timeout": 15 } ] } ]'
+POST_HOOK='"PostToolUse": [ { "matcher": "Read|mcp__.*|WebFetch|WebSearch", "hooks": [ { "type": "command", "command": "'"$ROOT"'/adapters/claude-code-result.sh", "timeout": 15 } ] } ]'
+
+BASE_SET="$(mktemp)";    printf '{}\n' > "$BASE_SET"
+CMDONLY_SET="$(mktemp)"; printf '{ "hooks": { %s } }\n'      "$PRE_HOOK"             > "$CMDONLY_SET"
+FULL_SET="$(mktemp)";    printf '{ "hooks": { %s, %s } }\n'  "$PRE_HOOK" "$POST_HOOK" > "$FULL_SET"
 
 TASKS=(
   "Run: git log -p -30   then summarise the three most significant changes in two sentences."
@@ -60,8 +65,9 @@ print(json.dumps(rec))
 echo "model=$MODEL repeats=$REPEATS target=$TARGET" >&2
 for ti in "${!TASKS[@]}"; do
   for rep in $(seq 1 "$REPEATS"); do
-    run_one baseline   "$BASE_SET"  "$ti" "$rep"
-    run_one quiet-bash "$QUIET_SET" "$ti" "$rep"
+    run_one baseline "$BASE_SET"    "$ti" "$rep"
+    run_one cmd-only "$CMDONLY_SET" "$ti" "$rep"
+    run_one full     "$FULL_SET"    "$ti" "$rep"
   done
 done
 
@@ -73,15 +79,19 @@ by=collections.defaultdict(lambda:collections.defaultdict(list))
 for r in rows:
     for k in ('input','output','cost','ms'): by[r['arm']][k].append(r[k])
 def mean(x): return statistics.mean(x) if x else 0
-arms=['baseline','quiet-bash']
-print("# quiet-bash agentic benchmark — mean per run")
+arms=['baseline','cmd-only','full']
+labels={'baseline':'A baseline (no hooks)','cmd-only':'B cmd-only (Bash)','full':'C full (Bash + Read/MCP)'}
+print("# quiet-bash agentic benchmark — mean per run (3-arm)")
 print(f"| arm | input tok | output tok | cost $ | time s | runs |")
 print(f"|---|--:|--:|--:|--:|--:|")
 for a in arms:
     if not by[a]['input']: continue
-    print(f"| {a} | {mean(by[a]['input']):,.0f} | {mean(by[a]['output']):,.0f} | {mean(by[a]['cost']):.4f} | {mean(by[a]['ms'])/1000:.1f} | {len(by[a]['input'])} |")
-if by['baseline']['input'] and by['quiet-bash']['input']:
-    b,q=mean(by['baseline']['input']),mean(by['quiet-bash']['input'])
-    bc,qc=mean(by['baseline']['cost']),mean(by['quiet-bash']['cost'])
-    print(f"\n**quiet-bash vs baseline: input tokens {100*(b-q)/b:+.1f}%, cost {100*(bc-qc)/bc:+.1f}%** (negative = cheaper).")
+    print(f"| {labels[a]} | {mean(by[a]['input']):,.0f} | {mean(by[a]['output']):,.0f} | {mean(by[a]['cost']):.4f} | {mean(by[a]['ms'])/1000:.1f} | {len(by[a]['input'])} |")
+if by['baseline']['input']:
+    b,bc=mean(by['baseline']['input']),mean(by['baseline']['cost'])
+    print("\n_vs baseline (negative = cheaper):_")
+    for a in ('cmd-only','full'):
+        if not by[a]['input']: continue
+        q,qc=mean(by[a]['input']),mean(by[a]['cost'])
+        print(f"- **{labels[a]}**: input {100*(b-q)/b:+.1f}%, cost {100*(bc-qc)/bc:+.1f}%")
 PY
