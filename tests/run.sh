@@ -450,6 +450,22 @@ out=$("$QV" "$VF" 'FAILURE'); st=$?
 "$QV" "$VF" '[' >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-verify invalid regex exit 2" || bad "quiet-verify invalid regex exit 2"
 rm -f "$VF"
 
+echo "== quiet-check =="
+QC="$ROOT/core/quiet-check.sh"
+CF=$(mktemp); printf 'building...\nWARNING deprecated\nERROR boom\nFAILED step 2\nok done\n' > "$CF"
+out=$("$QC" "$CF"); st=$?
+{ [ "$st" -eq 1 ] && printf '%s' "$out" | grep -q 'FAIL' && printf '%s' "$out" | grep -qE '2 error' && printf '%s' "$out" | grep -qE '1 warning'; } \
+  && pass "quiet-check FAIL + tally + exit 1" || bad "quiet-check fail-case"
+printf '%s' "$out" | grep -q 'first 5 error' && pass "quiet-check shows first errors" || bad "quiet-check first errors"
+GF=$(mktemp); printf 'building...\nall good\nok done\n' > "$GF"
+out=$("$QC" "$GF"); st=$?
+{ [ "$st" -eq 0 ] && printf '%s' "$out" | grep -q 'PASS' && printf '%s' "$out" | grep -qE '0 error'; } \
+  && pass "quiet-check PASS + exit 0" || bad "quiet-check pass-case"
+"$QC" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-check usage exit 2" || bad "quiet-check usage"
+"$QC" /no/such/file >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-check missing-file exit 2" || bad "quiet-check missing-file"
+QUIET_CHECK_ERROR_RE='[' "$QC" "$CF" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-check invalid regex exit 2" || bad "quiet-check invalid regex"
+rm -f "$CF" "$GF"
+
 echo "== quiet-agg =="
 QA="$ROOT/core/quiet-agg.sh"
 AF=$(mktemp); printf 'E101 boom\nE200 nope\nE101 again\nE101 third\nE200 second\n' > "$AF"
