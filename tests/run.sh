@@ -632,6 +632,30 @@ echo "== command-level dedup (repeat cat of an unchanged file) =="
   rm -rf "$QUIET_LOG_DIR"
 )
 
+echo "== diff-on-reread (opt-in: QUIET_DIFF_REREAD) =="
+(
+  export QUIET_LOG_DIR; QUIET_LOG_DIR=$(mktemp -d)
+  . "$ROOT/core/quiet-core.sh"
+  base=$(awk 'BEGIN{for(i=1;i<=100;i++)print "line "i}')
+  changed=$(printf '%s' "$base" | sed 's/^line 50$/line 50 EDITED/')
+  huge=$(awk 'BEGIN{for(i=1;i<=100;i++)print "totally different content row "i}')
+  # OFF by default → no diff, behaves as pass-through
+  quiet_diff_reread "sD" "/x/f" "$base" >/dev/null && bad "diff should be off by default" || pass "diff-reread off by default"
+  export QUIET_DIFF_REREAD=1
+  # first read → snapshot stored, pass through
+  quiet_diff_reread "sD" "/x/f" "$base" >/dev/null && bad "first read should pass through" || pass "first read snapshots + passes through"
+  # small change re-read → unified diff returned, mentions the edited line
+  out=$(quiet_diff_reread "sD" "/x/f" "$changed") \
+    && printf '%s' "$out" | grep -q 'line 50 EDITED' \
+    && printf '%s' "$out" | grep -q 'changed since you last read it' \
+    && pass "changed re-read returns a unified diff" || bad "diff-reread small change"
+  # identical re-read → no diff (let dedup handle it)
+  quiet_diff_reread "sD" "/x/f" "$changed" >/dev/null && bad "identical re-read should pass through" || pass "identical re-read passes through"
+  # massive change (diff not smaller than full) → pass full through
+  quiet_diff_reread "sD" "/x/f" "$huge" >/dev/null && bad "huge change should show full" || pass "huge change shows full (diff not smaller)"
+  rm -rf "$QUIET_LOG_DIR"
+)
+
 echo "== deterministic-first skill =="
 SK="$ROOT/skills/deterministic-first/SKILL.md"
 [ -f "$SK" ] && pass "skill file exists" || bad "skill file exists"

@@ -63,3 +63,36 @@ quiet_cmd_dedup() {
   fi
   return 1
 }
+
+# quiet_diff_reread <session_id> <path> <content>   (OPT-IN: QUIET_DIFF_REREAD=1)
+#   When a file is re-read after CHANGING this session, the agent usually only
+#   needs what changed. If a unified diff vs the last-read snapshot is much
+#   smaller than the full content, print it (lossless — full file is on disk at
+#   <path>) and return 0; else return 1 (show full). Off by default → no
+#   behaviour change unless explicitly enabled. Snapshots live under the log dir
+#   and are pruned with everything else.
+quiet_diff_reread() {
+  [ -n "${QUIET_DIFF_REREAD:-}" ] || return 1
+  local sid="$1" path="$2" content="$3"
+  [ -n "$sid" ] && [ -n "$path" ] || return 1
+  local safe ph snap
+  safe=$(printf '%s' "$sid" | tr -c 'A-Za-z0-9_-' '_')
+  ph=$(printf '%s' "$path" | cksum | cut -d' ' -f1)
+  snap="${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}snap-${safe}-${ph}"
+  if [ -f "$snap" ] && ! printf '%s' "$content" | cmp -s - "$snap"; then
+    local cur diff csz dsz
+    cur=$(mktemp "${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}cur-XXXXXX")
+    printf '%s' "$content" > "$cur"
+    diff=$(diff -u "$snap" "$cur" 2>/dev/null)
+    csz=$(printf '%s' "$content" | wc -c | tr -d ' ')
+    dsz=$(printf '%s' "$diff" | wc -c | tr -d ' ')
+    mv "$cur" "$snap" 2>/dev/null || { cp "$cur" "$snap" 2>/dev/null; rm -f "$cur" 2>/dev/null; }
+    if [ -n "$diff" ] && [ "$dsz" -lt "$((csz/2))" ]; then
+      printf '[quiet-bash] %s changed since you last read it this session — unified diff below (full current file is on disk, unchanged, at %s):\n%s' "$path" "$path" "$diff"
+      return 0
+    fi
+    return 1   # diff not smaller than full → let the full content through
+  fi
+  printf '%s' "$content" > "$snap" 2>/dev/null   # first read / identical → (re)snapshot
+  return 1
+}
