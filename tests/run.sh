@@ -709,5 +709,12 @@ printf '%s' "$frep" | grep -Eq 'cost -[0-9]' && pass "report: cheaper arm shows 
 printf '%s' "$frep" | grep -q ' 6.0 ' && pass "report: turns column populated (not 0.0)" || bad "report turns column"
 rm -f "$ft"
 
+echo "== enrichment skill rows =="
+SKE="$ROOT/skills/deterministic-first/SKILL.md"
+for tok in 'quiet-env' 'quiet-map'; do
+  grep -qF "$tok" "$SKE" 2>/dev/null && pass "skill mentions $tok" || bad "skill missing $tok"
+done
+grep -q 'Orient' "$SKE" 2>/dev/null && pass "skill has orient row" || bad "skill orient row"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
