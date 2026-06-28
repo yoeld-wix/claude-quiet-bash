@@ -29,6 +29,9 @@
 # Absolute dir of this core (so quiet_rewrite can point at sibling scripts).
 QUIET_CORE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null)" || QUIET_CORE_DIR=.
 
+# Duplicate-read dedup helper (defines _quiet_mtime, quiet_dedup_check).
+[ -r "$QUIET_CORE_DIR/quiet-dedup.sh" ] && . "$QUIET_CORE_DIR/quiet-dedup.sh"
+
 # ── Prune stale redirect logs ────────────────────────────────────────────────
 quiet_prune() {
   # Throttle: a full dir scan on every hook invocation costs ~40ms. Skip it if we

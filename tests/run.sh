@@ -492,6 +492,30 @@ out=$("$QA" "$AF" 'ZZZ'); st=$?
 "$QA" "$AF" '[' >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-agg invalid regex exit 2" || bad "quiet-agg invalid regex exit 2"
 rm -f "$AF"
 
+echo "== quiet-dedup =="
+( # subshell so QUIET_LOG_DIR override is local
+  export QUIET_LOG_DIR; QUIET_LOG_DIR=$(mktemp -d)
+  . "$ROOT/core/quiet-dedup.sh"
+  DF="$QUIET_LOG_DIR/data.txt"; printf 'hello\nworld\n' > "$DF"
+  # first read: pass through (no output), returns 1
+  o1=$(quiet_dedup_check "sessA" "$DF" "" ""); r1=$?
+  { [ "$r1" -eq 1 ] && [ -z "$o1" ]; } && pass "dedup first read passes through" || bad "dedup first read"
+  # second identical read: dedup (output + returns 0)
+  o2=$(quiet_dedup_check "sessA" "$DF" "" ""); r2=$?
+  { [ "$r2" -eq 0 ] && printf '%s' "$o2" | grep -q 'unchanged since you read it'; } && pass "dedup repeat read deduped" || bad "dedup repeat read"
+  # changed mtime+content: pass through
+  sleep 1; printf 'hello\nworld\nmore\n' > "$DF"
+  o3=$(quiet_dedup_check "sessA" "$DF" "" ""); r3=$?
+  [ "$r3" -eq 1 ] && pass "dedup changed file passes through" || bad "dedup changed file"
+  # different range: different key → pass through
+  o4=$(quiet_dedup_check "sessA" "$DF" "10" "20"); r4=$?
+  [ "$r4" -eq 1 ] && pass "dedup different range passes through" || bad "dedup different range"
+  # no session id: disabled
+  o5=$(quiet_dedup_check "" "$DF" "" ""); r5=$?
+  [ "$r5" -eq 1 ] && pass "dedup no-session disabled" || bad "dedup no-session"
+  rm -rf "$QUIET_LOG_DIR"
+)
+
 echo "== deterministic-first skill =="
 SK="$ROOT/skills/deterministic-first/SKILL.md"
 [ -f "$SK" ] && pass "skill file exists" || bad "skill file exists"
