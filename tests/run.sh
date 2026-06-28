@@ -19,7 +19,7 @@ for c in "yarn test" "pnpm run build" "bun test" "pytest -q" "cargo build --rele
 done
 
 echo "== core: should PASS THROUGH =="
-for c in "ls -la" "cat f.txt" "grep -r x ." "git status" "gh pr list" "echo hi" "pwd" \
+for c in "ls -la" "cat f.txt" "grep x f.txt" "git status" "gh pr list" "echo hi" "pwd" \
          "cd /tmp" "which node" "git diff --stat" "git log --oneline" "yarn info x"; do
   if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
 done
@@ -30,7 +30,7 @@ for c in "gh run view 123 --log" "gh run view 123 --log-failed" "gh pr diff 45" 
   if quiet_rewrite "$c" >/dev/null; then pass "wrap: $c"; else bad "should wrap: $c"; fi
 done
 for c in "gh pr list" "gh run view 123" "gh pr diff 45 | head" "gh run view 1 --log > out.txt" \
-         "gh run view 1 --logout" "ls -la" "ls" "find --help" "grep -r x ." "rg foo" \
+         "gh run view 1 --logout" "ls -la" "ls" "find --help" \
          "find . -exec chmod 644 {} +" "yarn workspaces tree"; do
   if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
 done
@@ -48,6 +48,15 @@ for c in "curl https://x | jq ." "curl -o out.json https://x" "curl -O https://x
   if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
 done
 quiet_rewrite 'd=$(curl https://x)' >/dev/null && bad "cmd-subst curl should pass through" || pass "cmd-subst curl passes through"
+
+echo "== core: recursive-search collapse (grep -r / rg) =="
+for c in "grep -r x ." "grep -R foo src" "grep -rn TODO ." "rg foo" "rg bar src" "rg -n foo"; do
+  if quiet_rewrite "$c" >/dev/null; then pass "wrap: $c"; else bad "should wrap: $c"; fi
+done
+for c in "grep x f.txt" "grep -rl x ." "grep -c x ." "rg -l foo" "rg -c foo" "rg foo | head" \
+         "grep -r x . > out" "grep -r x . | wc -l" 'd=$(rg foo)'; do
+  if quiet_rewrite "$c" >/dev/null; then bad "should pass: $c"; else pass "pass: $c"; fi
+done
 
 echo "== adapters: output shape for 'yarn test' + passthrough for 'ls -la' =="
 EV='{"tool_input":{"command":"yarn test"}}'

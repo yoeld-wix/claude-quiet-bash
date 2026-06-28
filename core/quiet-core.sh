@@ -322,6 +322,23 @@ quiet_rewrite() {
     return 0
   fi
 
+  # ── recursive-search path: grep -r / rg can flood context; VERBATIM-wrap ──
+  # The command runs exactly as written (no flag rewrite → no changed match
+  # semantics); only a large RESULT is collapsed (spill + first-N + count +
+  # grep pointer), small results still show inline. Lossless. Only recursive
+  # searches (the flooding ones); bounded/piped/listing forms pass through.
+  local grep_re='(^|[[:space:];&|(/])(grep|egrep|fgrep)[[:space:]]'
+  local recflag_re='[[:space:]](-[A-Za-z]*[rR][A-Za-z]*|--recursive)([[:space:]]|$)'
+  local rg_re='(^|[[:space:];&|(/])(rg|ripgrep)[[:space:]]'
+  # Output-bounding flags (count/list/quiet) → already small, leave alone.
+  local sbound_re='[[:space:]](-[A-Za-z]*[clLq][A-Za-z]*|--count|--files-with-matches|--files-without-match|--quiet)([[:space:]]|$)'
+  if [[ $cmd != *'|'* && $cmd != *'>'* && $cmd != *'$('* && $cmd != *'`'* && $cmd != *-exec* ]] \
+     && { { [[ $cmd =~ $grep_re ]] && [[ $cmd =~ $recflag_re ]]; } || [[ $cmd =~ $rg_re ]]; } \
+     && ! [[ $cmd =~ $sbound_re ]]; then
+    _quiet_wrap_search "$cmd"
+    return 0
+  fi
+
   # ── network-fetch path: curl returning a large body floods context ──
   # Skip piped/redirected/$(…); skip -o/-O (writes a file, no stdout) and -I/
   # --head (headers only, small). Small responses still pass through inline.
