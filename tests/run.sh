@@ -648,5 +648,12 @@ out=$("$QB" README.md 1 3); st=$?
 "$QB" README.md 1 >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-blame usage exit 2" || bad "quiet-blame usage"
 "$QB" README.md a b >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-blame non-numeric exit 2" || bad "quiet-blame non-numeric"
 
+echo "== round-2 skill rows =="
+SKR="$ROOT/skills/deterministic-first/SKILL.md"
+for tok in 'quiet-conf' 'quiet-hist' 'tsort'; do
+  grep -qF "$tok" "$SKR" 2>/dev/null && pass "skill mentions $tok" || bad "skill missing $tok"
+done
+grep -q 'Repeated & blocking work' "$ROOT/README.md" 2>/dev/null && pass "README round-1 row intact" || bad "README row"
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
