@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.23.0] — 2026-06-28
 
 ### Changed
 - **Expensive result quieting is now opt-in on Claude Code (lossless dedup stays on).** A
@@ -34,6 +34,14 @@ All notable changes to this project are documented here. Format follows
   unified diff vs the last read instead of the whole file (full file unchanged on disk). Off
   by default; requires the result hook (`QUIET_RESULT_HOOK=1`). Experimental — enabling it by
   default awaits an edit-heavy agentic gate.
+- **Deterministic-first toolset** (#4, #6): pipe for the answer instead of reading the
+  haystack — `quiet-check` (verdict + tally), `quiet-wait` (one-shot poll), `quiet-conf`
+  (config value), `quiet-hist`/`quiet-blame` (git archaeology), duplicate-read dedup, and
+  recursive `grep`/`rg` collapse.
+- **Context enrichment** (#8): `quiet-env` (one-shot environment digest) and `quiet-map`
+  (repo file-size / churn / tree map), with an enrichment benchmark.
+- **Model-economy benchmark gate** (#5): measures whether downgrading subagents to a cheaper
+  tier saves cost with zero answer-quality regression (recorded verdict: inconclusive).
 
 ## [1.22.1] — 2026-06-25
 
