@@ -355,7 +355,7 @@ quiet_rewrite "cat $OT/tiny.py" >/dev/null && bad "small file should pass throug
 # Result-hook split: the LOSSY/expensive paths (source outlining, MCP collapse)
 # are opt-in; the LOSSLESS dedup stays ON by default. Prove both with the var unset.
 CR="$ROOT/adapters/claude-code-result.sh"
-bigpy_payload=$(jq -n --arg p "$OT/big.py" --arg c "$(cat "$OT/big.py")" --arg s "sessSPLIT" \
+bigpy_payload=$(jq -n --arg p "$OT/big.py" --rawfile c "$OT/big.py" --arg s "sessSPLIT" \
   '{session_id:$s, tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
 # (1) source outlining is OFF by default → first read passes through (no outline)
 off1=$(printf '%s' "$bigpy_payload" | env -u QUIET_RESULT_HOOK QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
@@ -385,7 +385,7 @@ go=$(printf '%s' "$gpayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
 printf '%s' "$go" | grep -q 'outline' && bad "Grep result must not be outlined" || pass "Grep result not clobbered by outline"
 # Large NON-source Read (e.g. a .txt) → must pass through untouched (no head/tail, no rewrite)
 { for i in $(seq 1 4000); do echo "log line $i ................................................"; done; } > "$OT/big.txt"
-tpayload=$(jq -n --arg p "$OT/big.txt" --arg c "$(cat "$OT/big.txt")" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
+tpayload=$(jq -n --arg p "$OT/big.txt" --rawfile c "$OT/big.txt" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
 to=$(printf '%s' "$tpayload" | QUIET_OUTLINE_MIN_BYTES=30000 "$CR")
 [ -z "$to" ] && pass "large non-source Read passes through untouched" || bad "non-source Read should pass through"
 # Wiring regression: the PostToolUse matcher MUST include Read (else native-Read outlining never fires)
@@ -575,7 +575,7 @@ echo "== adapter: duplicate-read dedup =="
   BIG="$QUIET_LOG_DIR/big.log"
   awk 'BEGIN{for(i=0;i<4000;i++)print "line "i" some filler text to exceed the outline threshold"}' > "$BIG"
   CONTENT=$(cat "$BIG")
-  EV=$(jq -n --arg p "$BIG" --arg t "$CONTENT" --arg s "sessDED" \
+  EV=$(jq -n --arg p "$BIG" --rawfile t "$BIG" --arg s "sessDED" \
         '{session_id:$s, tool_name:"Read", tool_input:{file_path:$p}, tool_response:$t}')
   # first event: pass through (adapter prints nothing)
   o1=$(printf '%s' "$EV" | "$ROOT/adapters/claude-code-result.sh")

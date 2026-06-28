@@ -20,7 +20,7 @@ _quiet_mtime() {
 quiet_dedup_check() {
   local sid="$1" path="$2" off="${3:-}" lim="${4:-}"
   [ -n "$sid" ] && [ -n "$path" ] && [ -f "$path" ] || return 1
-  local safe key state cmt csz prev
+  local safe key state cmt csz prev=""   # init: bash 5 errors on unset under `set -u`
   safe=$(printf '%s' "$sid" | tr -c 'A-Za-z0-9_-' '_')
   state="${QUIET_LOG_DIR}/${QUIET_LOG_PREFIX}dedup-${safe}"
   key=$(printf '%s|%s|%s' "$path" "$off" "$lim" | cksum | cut -d' ' -f1)
