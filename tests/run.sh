@@ -466,6 +466,15 @@ out=$("$QC" "$GF"); st=$?
 QUIET_CHECK_ERROR_RE='[' "$QC" "$CF" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-check invalid regex exit 2" || bad "quiet-check invalid regex"
 rm -f "$CF" "$GF"
 
+echo "== quiet-wait =="
+QW="$ROOT/core/quiet-wait.sh"
+out=$("$QW" 'true' --timeout 2 --interval 1); st=$?
+{ [ "$st" -eq 0 ] && printf '%s' "$out" | grep -q 'condition met'; } && pass "quiet-wait success exit 0" || bad "quiet-wait success"
+out=$("$QW" 'false' --timeout 1 --interval 1); st=$?
+{ [ "$st" -eq 1 ] && printf '%s' "$out" | grep -q 'TIMEOUT'; } && pass "quiet-wait timeout exit 1" || bad "quiet-wait timeout"
+"$QW" >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-wait usage exit 2" || bad "quiet-wait usage"
+"$QW" 'true' --timeout abc >/dev/null 2>&1; [ $? -eq 2 ] && pass "quiet-wait bad timeout exit 2" || bad "quiet-wait bad timeout"
+
 echo "== quiet-agg =="
 QA="$ROOT/core/quiet-agg.sh"
 AF=$(mktemp); printf 'E101 boom\nE200 nope\nE101 again\nE101 third\nE200 second\n' > "$AF"
