@@ -22,9 +22,10 @@ the pipeline and let only the answer enter context.
 | **Count** / frequency | read log, tally by eye | `grep -c PAT` · `quiet-agg FILE 'PAT'` |
 | **Extract** fields | copy values out of JSON/text | `jq '.field'` · `awk '{print $2}'` · `grep -oE` |
 | **Parse** structured slices | scan a config visually | `jq` / `yq` / `quiet-query FILE keys` |
-| **Verify** a fact | read output to confirm | `quiet-verify FILE 'PAT'` · `test -f` · exit code |
+| **Verify** a fact / triage a log | read output to confirm or count failures | `quiet-verify FILE 'PAT'` · `quiet-check FILE` (PASS/FAIL + error tally) · `test -f` |
 | **Repeat** over a set | N near-identical tool calls | `xargs` · `for f in …; do …; done` |
-| **Wait** for a condition | poll by re-reading status | `until COND; do sleep N; done` |
+| **Wait** for a condition | poll by re-reading status | `quiet-wait 'COND' --timeout N` · `until COND; do sleep N; done` |
+| **Re-read** a file you already read | re-open it (re-bills the bytes) | don't — its contents are already above this turn; scroll up |
 
 ## Compose with quiet-bash
 When the haystack is a quiet-bash spill (`[ok: … hidden in <path>]` or a

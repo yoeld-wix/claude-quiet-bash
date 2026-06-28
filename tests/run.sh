@@ -592,6 +592,14 @@ if printf '%s' "$me_rep" | grep -Eq "arm A:.*→ SHIP"; then
   pass "report: zero-regression + cheaper → SHIP verdict"
 else bad "report: cheaper zero-regression arm should yield SHIP"; fi
 rm -f "$me_tmp"
+echo "== composition: quiet-check over a spill =="
+. "$ROOT/core/quiet-core.sh"
+MSG=$(quiet_run sh -c 'echo building; echo "ERROR nope"; echo "WARNING meh"; exit 1' 2>/dev/null)
+LOG=$(printf '%s' "$MSG" | grep -oE "${QUIET_LOG_DIR%/}/+${QUIET_LOG_PREFIX}[A-Za-z0-9]+" | head -1)
+{ [ -n "$LOG" ] && [ -f "$LOG" ]; } && pass "spill log created (check)" || bad "spill log created (check)"
+out=$("$ROOT/core/quiet-check.sh" "$LOG"); st=$?
+{ [ "$st" -eq 1 ] && printf '%s' "$out" | grep -q 'FAIL' && printf '%s' "$out" | grep -qE '1 error'; } \
+  && pass "quiet-check recovers verdict+tally from spill" || bad "quiet-check over spill"
 
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }
