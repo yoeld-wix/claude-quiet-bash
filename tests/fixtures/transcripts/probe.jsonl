@@ -1,0 +1,2 @@
+{"message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"node --version"}}]}}
+{"message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"which docker"}}]}}

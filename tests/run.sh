@@ -839,5 +839,51 @@ for tok in 'quiet-env' 'quiet-map'; do
 done
 grep -q 'Orient' "$SKE" 2>/dev/null && pass "skill has orient row" || bad "skill orient row"
 
+echo "== quiet-applies =="
+QA2="$ROOT/core/quiet-applies.sh"
+AR=$(mktemp -d); AP=$(mktemp)
+( cd "$AR" && git init -q && git config user.email t@t && git config user.name t \
+  && printf 'a\nb\nc\n' > f.txt && git add f.txt && git commit -qm init \
+  && printf 'a\nB\nc\n' > f.txt && git diff > "$AP" && git checkout -q f.txt )
+( cd "$AR" && "$QA2" -f "$AP" ) | grep -q 'APPLIES' && pass "quiet-applies clean → APPLIES" || bad "quiet-applies clean"
+( cd "$AR" && "$QA2" -f "$AP" >/dev/null 2>&1; [ $? -eq 0 ] ) && pass "quiet-applies clean exit 0" || bad "quiet-applies exit0"
+# corrupt the target so the patch no longer applies → CONFLICT exit 1
+( cd "$AR" && printf 'totally\ndifferent\n' > f.txt && "$QA2" -f "$AP" >/dev/null 2>&1; [ $? -eq 1 ] ) && pass "quiet-applies conflict → exit 1" || bad "quiet-applies conflict"
+( cd "$AR" && "$QA2" </dev/null >/dev/null 2>&1; [ $? -eq 2 ] ) && pass "quiet-applies empty → exit 2" || bad "quiet-applies empty"
+NG=$(mktemp -d); ( cd "$NG" && printf 'x' | "$QA2" >/dev/null 2>&1; [ $? -eq 2 ] ) && pass "quiet-applies non-git → exit 2" || bad "quiet-applies non-git"
+rm -rf "$AR" "$NG" "$AP"
+
+echo "== quiet-patch =="
+QP="$ROOT/core/quiet-patch.sh"
+PR=$(mktemp -d); PP=$(mktemp)
+( cd "$PR" && git init -q && git config user.email t@t && git config user.name t \
+  && printf 'a\nb\nc\n' > f.txt && git add f.txt && git commit -qm init \
+  && printf 'a\nB\nc\n' > f.txt && git diff > "$PP" && git checkout -q f.txt )
+( cd "$PR" && "$QP" -f "$PP" >/dev/null && grep -q '^B$' f.txt ) && pass "quiet-patch applies + changes file" || bad "quiet-patch applies"
+# re-apply same patch (already applied) → FAIL exit 1, tree untouched
+before=$(cd "$PR" && cat f.txt)
+( cd "$PR" && "$QP" -f "$PP" >/dev/null 2>&1; [ $? -eq 1 ] ) && pass "quiet-patch re-apply → FAIL exit 1" || bad "quiet-patch reapply"
+after=$(cd "$PR" && cat f.txt); [ "$before" = "$after" ] && pass "quiet-patch FAIL leaves tree untouched" || bad "quiet-patch tree untouched"
+( cd "$PR" && "$QP" </dev/null >/dev/null 2>&1; [ $? -eq 2 ] ) && pass "quiet-patch empty → exit 2" || bad "quiet-patch empty"
+NGP=$(mktemp -d); ( cd "$NGP" && printf 'x' | "$QP" >/dev/null 2>&1; [ $? -eq 2 ] ) && pass "quiet-patch non-git → exit 2" || bad "quiet-patch non-git"
+rm -rf "$PR" "$NGP" "$PP"
+
+echo "== bench: dfirst-audit =="
+DA="$ROOT/bench/dfirst-audit.py"
+FX="$ROOT/tests/fixtures/transcripts"
+python3 "$DA" "$FX/probe.jsonl" | grep -q 'quiet-env | 1 | 2' && pass "audit P4 detects probes" || bad "audit P4"
+python3 "$DA" "$FX/reread.jsonl" | grep -q 'quiet-dedup | 1 | 1' && pass "audit P2 detects re-read" || bad "audit P2"
+cl=$(python3 "$DA" "$FX/clean.jsonl")
+{ printf '%s' "$cl" | grep -q 'quiet-env | 0 | 0' && printf '%s' "$cl" | grep -q 'quiet-dedup | 0 | 0'; } && pass "audit clean → no hits" || bad "audit clean"
+BADJ=$(mktemp); printf 'not json\n{"message":{"content":[]}}\n' > "$BADJ"
+python3 "$DA" "$BADJ" >/dev/null 2>&1 && pass "audit tolerates malformed lines" || bad "audit malformed"
+rm -f "$BADJ"
+
+echo "== frontier skill rows =="
+SKF="$ROOT/skills/deterministic-first/SKILL.md"
+for tok in 'quiet-patch' 'quiet-applies'; do
+  grep -qF "$tok" "$SKF" 2>/dev/null && pass "skill mentions $tok" || bad "skill missing $tok"
+done
+
 echo
 [ "$fail" -eq 0 ] && { echo "ALL TESTS PASSED"; exit 0; } || { echo "TESTS FAILED"; exit 1; }

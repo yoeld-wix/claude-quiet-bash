@@ -1,0 +1,2 @@
+{"message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/a/b.txt"}}]}}
+{"message":{"content":[{"type":"text","text":"done"}]}}
