@@ -19,6 +19,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$ROOT/core/quiet-core.sh"
 command -v jq >/dev/null 2>&1 || exit 0
 
+# Result quieting (Read/MCP/Web tool results) is OPT-IN. The n=20 agentic
+# benchmark (bench/RESULTS.md) found this PostToolUse lever adds cost without a
+# net benefit on typical workloads, while the command-output (PreToolUse Bash)
+# lever pays off — so the shipped default is "command-output only". Turn this
+# path on for large-MCP / large-Web-result workloads with:
+#     export QUIET_RESULT_HOOK=1
+[ -n "${QUIET_RESULT_HOOK:-}" ] || exit 0
+
 quiet_prune
 
 input=$(cat)
