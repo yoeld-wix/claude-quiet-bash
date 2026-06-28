@@ -1,4 +1,5 @@
 bench/*-runs.jsonl
+bench/*-runs-*.jsonl
 bench/*.log
 bench/agentic*-report.md
 

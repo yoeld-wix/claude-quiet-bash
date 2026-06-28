@@ -3,6 +3,25 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Result quieting (Read/MCP/Web `PostToolUse`) is now opt-in on Claude Code.** A 20-run
+  agentic benchmark (`bench/RESULTS.md`) found this lever adds cost without a net benefit on
+  typical coding workloads, while the command-output (`PreToolUse` Bash) lever pays off
+  (~10% cheaper, consistent across tasks). The shipped default is now "command-output only";
+  enable result quieting for large-MCP / large-Web-result workloads with `QUIET_RESULT_HOOK=1`.
+  The hook stays wired (`hooks.json` unchanged); the adapter is a no-op pass-through unless the
+  variable is set.
+
+### Added
+- **Cache-aware agentic benchmark.** `bench/agentic.sh` is now a 3-arm A/B/C (baseline /
+  command-output only / full) and reports **cost**, a fresh/`cache_read`/`cache_creation`
+  split, cache-hit %, and cost σ — instead of a raw input-token sum that over-weights
+  `cache_read` (billed ~0.1×) and turn-count noise.
+- Regression tests asserting collapsed tool results stay byte-exact and `quiet-query`-able
+  (lossless → the agent drills in, never re-fetches).
+
 ## [1.22.1] — 2026-06-25
 
 ### Changed

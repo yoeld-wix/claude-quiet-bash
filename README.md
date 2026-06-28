@@ -333,6 +333,13 @@ recognize** — safe no-op, never breakage. Small results and non-text content a
 through. Lossless: only the *preview* shrinks. Tune with `QUIET_RESULT_MIN_BYTES`
 (default 25000).
 
+> **Opt-in (off by default).** On Claude Code this result hook is **dormant unless
+> you set `QUIET_RESULT_HOOK=1`**. A 20-run agentic benchmark ([`bench/RESULTS.md`](bench/RESULTS.md))
+> found it adds cost without a net benefit on typical coding workloads, while the
+> command-output (`PreToolUse` Bash) lever pays off — so the shipped default is
+> "command-output only". Turn it on for **large-MCP / large-Web-result** workloads
+> (search dumps, big API payloads) where it shines: `export QUIET_RESULT_HOOK=1`.
+
 **Across agents** (same shared core, different hook fields):
 
 | Agent | Adapter | Hook → replace field |

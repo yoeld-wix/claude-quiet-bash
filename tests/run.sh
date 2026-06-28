@@ -149,12 +149,26 @@ MT=$(mktemp -d)
 # large JSON result → replaced with a collapsed summary
 bigjson=$(jq -nc '{items:[range(3000)|{id:.,name:"pkg",version:"1.0.0",url:"https://example.com/x"}]}')
 printf '%s' "$bigjson" > "$MT/bigjson"
+# DEFAULT (opt-in OFF): result quieting is dormant — a large result passes through.
+pj0=$(jq -n --rawfile t "$MT/bigjson" '{tool_name:"mcp__search__query", tool_response:{content:[{type:"text",text:$t}]}}')
+[ -z "$(printf '%s' "$pj0" | env -u QUIET_RESULT_HOOK "$MCP")" ] \
+  && pass "result quieting OFF by default (large result passes through)" || bad "result hook should be off by default"
+# The rest of this section exercises the OPT-IN behaviour:
+export QUIET_RESULT_HOOK=1
 pj=$(jq -n --rawfile t "$MT/bigjson" '{tool_name:"mcp__search__query", tool_response:{content:[{type:"text",text:$t}]}}')
 oj=$(printf '%s' "$pj" | "$MCP")
 rep=$(printf '%s' "$oj" | jq -r '.hookSpecificOutput.updatedToolOutput.content[0].text' 2>/dev/null)
 [ -n "$rep" ] && echo "$rep" | grep -q 'quiet-bash' && pass "large JSON MCP result replaced" || bad "mcp json replace"
 [ "${#rep}" -lt "${#bigjson}" ] && pass "mcp summary smaller than raw (${#rep} < ${#bigjson})" || bad "mcp json not smaller"
 echo "$rep" | grep -q 'more of 3000' && pass "mcp json collapses repeated shape" || bad "mcp json collapse"
+# anti-thrash guarantee: a collapsed JSON result must stay LOSSLESS and queryable
+# so the agent drills into the spill instead of re-fetching. (The 3-arm benchmark's
+# apparent "full-arm regression" was turn-count variance, NOT this path — keep it
+# that way structurally: lossy/non-queryable results are what would cause re-fetch.)
+spillref=$(printf '%s' "$rep" | grep -oE '/[^ "]+result-[A-Za-z0-9]+\.json' | head -1)
+{ [ -n "$spillref" ] && [ -f "$spillref" ] && cmp -s "$MT/bigjson" "$spillref"; } \
+  && pass "mcp json spill is byte-exact (lossless — no re-fetch needed)" || bad "mcp json spill not byte-exact"
+echo "$rep" | grep -q 'quiet-query.sh' && pass "mcp json summary points to quiet-query (drill-in, not re-fetch)" || bad "mcp json missing query pointer"
 # large TEXT result → spilled with head/tail
 bigtext=$(for i in $(seq 1 4000); do echo "log line $i: something happened here with detail"; done)
 printf '%s' "$bigtext" > "$MT/bigtext"
@@ -325,6 +339,8 @@ quiet_rewrite "cat $OT/big.py | grep def" >/dev/null && bad "piped read should p
 echo "def tiny(): pass" > "$OT/tiny.py"
 quiet_rewrite "cat $OT/tiny.py" >/dev/null && bad "small file should pass through" || pass "small source read passes through"
 # Native Read path: tool_input.path to a large source file → outline in updatedToolOutput
+# (opt-in path — result quieting is off by default; see the PostToolUse section above)
+export QUIET_RESULT_HOOK=1
 CR="$ROOT/adapters/claude-code-result.sh"
 content=$(cat "$OT/big.py")
 payload=$(jq -n --arg p "$OT/big.py" --arg c "$content" '{tool_name:"Read", tool_input:{path:$p}, tool_response:$c}')
