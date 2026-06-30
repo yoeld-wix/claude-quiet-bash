@@ -1,0 +1,686 @@
+<title>quiet-bash · the learning loop</title>
+<meta name="description" content="A recognize → crystallize → reuse plan for turning an AI agent's recurring expensive work into cheap deterministic artifacts.">
+
+<style>
+  :root{
+    --ink:#0d1512; --ink-2:#101a16; --surf:#15201b; --surf-2:#1b2a23;
+    --line:#27392f; --line-soft:#1f2e27;
+    --green:#27c89a; --green-dim:#1fb588; --coral:#e8836b; --amber:#e0a458;
+    --text:#e7efe9; --muted:#8a9d92; --faint:#5f7268;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Menlo",monospace;
+    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --maxw:920px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;font-size:16px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  a{color:var(--green)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--green);outline-offset:3px;border-radius:2px}
+
+  /* ---- eyebrows / type scale ---- */
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--green);margin:0 0 14px}
+  h1{font-family:var(--mono);font-weight:600;font-size:clamp(30px,6vw,52px);line-height:1.05;
+    letter-spacing:-.01em;margin:0 0 18px;text-wrap:balance}
+  h2{font-family:var(--mono);font-weight:600;font-size:clamp(20px,3.4vw,27px);letter-spacing:-.01em;
+    margin:0 0 6px;text-wrap:balance}
+  h3{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:.01em;margin:0 0 8px;color:var(--text)}
+  p{margin:0 0 16px;max-width:64ch}
+  .lead{font-size:clamp(17px,2.3vw,20px);color:#cdd9d2;max-width:60ch}
+  strong{color:#fff;font-weight:600}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ---- header ---- */
+  header.hero{border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(1100px 380px at 78% -8%, rgba(39,200,154,.13), transparent 60%),
+      radial-gradient(680px 300px at 12% 0%, rgba(232,131,107,.07), transparent 60%);
+    padding:84px 0 56px}
+  .kicker-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:30px;
+    font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .tag{border:1px solid var(--line);border-radius:999px;padding:4px 11px;letter-spacing:.04em}
+  .tag.live{color:var(--green);border-color:#235} .tag.live::before{content:"";display:inline-block;
+    width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:7px;vertical-align:middle;
+    box-shadow:0 0 0 3px rgba(39,200,154,.18)}
+  .flow-line{font-family:var(--mono);font-size:clamp(13px,2.1vw,17px);color:var(--muted);margin-top:28px;
+    display:flex;flex-wrap:wrap;gap:8px 4px;align-items:center}
+  .flow-line b{color:var(--green);font-weight:600}
+  .flow-line .arr{color:var(--faint)}
+
+  /* ---- sections ---- */
+  section{padding:64px 0;border-bottom:1px solid var(--line-soft)}
+  .sec-head{margin-bottom:34px}
+  .sec-head .eyebrow{margin-bottom:10px}
+  .sec-head p{color:var(--muted);max-width:60ch;margin-top:10px}
+
+  /* ---- sticky nav ---- */
+  nav.stages{position:sticky;top:0;z-index:20;background:rgba(13,21,18,.86);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav.stages .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:11px;padding-bottom:11px}
+  nav.stages a{font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none;
+    white-space:nowrap;padding:6px 11px;border-radius:6px;letter-spacing:.02em}
+  nav.stages a:hover{color:var(--text);background:var(--surf)}
+
+  /* ---- pipeline ---- */
+  .pipe{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch}
+  .stage{flex:1 1 150px;min-width:140px;background:var(--surf);border:1px solid var(--line);
+    border-radius:11px;padding:16px 15px;position:relative;display:flex;flex-direction:column;gap:7px}
+  .stage .n{font-family:var(--mono);font-size:11px;color:var(--green);letter-spacing:.12em}
+  .stage h3{margin:0;font-size:15px}
+  .stage p{font-size:13px;color:var(--muted);margin:0;line-height:1.5}
+  .loopback{font-family:var(--mono);font-size:12px;color:var(--faint);margin-top:14px;
+    display:flex;align-items:center;gap:8px}
+  .loopback span{color:var(--coral)}
+
+  /* ---- ladder chart ---- */
+  .chart-card{background:var(--ink-2);border:1px solid var(--line);border-radius:14px;padding:22px 22px 18px;overflow-x:auto}
+  .chart-card .cap{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.04em;
+    margin-top:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-bottom:16px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+
+  /* ---- ladder list ---- */
+  .rungs{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+  .rung{display:grid;grid-template-columns:42px 1fr;gap:16px;align-items:start;
+    background:var(--surf);border:1px solid var(--line);border-radius:11px;padding:15px 17px}
+  .rung .badge{font-family:var(--mono);font-weight:600;font-size:18px;color:var(--green);
+    background:var(--ink);border:1px solid var(--line);border-radius:8px;height:42px;
+    display:flex;align-items:center;justify-content:center}
+  .rung h3{margin:0 0 3px} .rung p{margin:0;font-size:13.5px;color:var(--muted)}
+  .rung .meta{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:7px;letter-spacing:.03em}
+
+  /* ---- spectrum ---- */
+  .spectrum{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .sp{background:var(--surf);border:1px solid var(--line);border-radius:11px;padding:17px;border-top:3px solid}
+  .sp.mech{border-top-color:var(--green)} .sp.llm{border-top-color:var(--amber)} .sp.hitl{border-top-color:var(--coral)}
+  .sp h3{font-size:14px} .sp p{font-size:13px;color:var(--muted);margin:0}
+  .sp .lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:10px}
+
+  /* ---- trust ladder ---- */
+  .trust{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .tnode{flex:1 1 150px;min-width:140px;border-radius:11px;padding:15px;border:1px solid var(--line);background:var(--surf)}
+  .tnode .st{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+  .tnode p{font-size:12.5px;color:var(--muted);margin:0}
+  .tnode.proposed .st{color:var(--muted)} .tnode.shadow .st{color:var(--amber)}
+  .tnode.trusted .st{color:var(--green)} .tnode.retired .st{color:var(--coral)}
+  .tnode.trusted{border-color:#2c5} .tnode.trusted{box-shadow:0 0 0 1px rgba(39,200,154,.25) inset}
+  .asym{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:18px;
+    border-left:2px solid var(--coral);padding-left:14px}
+  .asym b{color:var(--text)}
+
+  /* ---- storage tiers ---- */
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .tier{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .tier .h{font-family:var(--mono);font-size:13px;color:var(--green);margin-bottom:8px;letter-spacing:.03em}
+  .tier.s2 .h{color:var(--amber)} .tier.s3 .h{color:var(--coral)}
+  .tier p{font-size:13px;color:var(--muted);margin:0}
+  .tier code{font-family:var(--mono);font-size:12px;color:#bcd}
+
+  /* ---- roadmap ---- */
+  .road{display:flex;flex-direction:column;gap:0}
+  .phase{display:grid;grid-template-columns:34px 1fr;gap:18px}
+  .phase .rail{display:flex;flex-direction:column;align-items:center}
+  .phase .dot{width:15px;height:15px;border-radius:50%;background:var(--ink);border:2px solid var(--green);margin-top:5px;flex:none}
+  .phase .line{width:2px;flex:1;background:var(--line);margin:6px 0}
+  .phase:last-child .line{display:none}
+  .phase .body{padding-bottom:26px}
+  .phase h3{margin-bottom:5px;font-size:15px}
+  .phase p{font-size:13.5px;color:var(--muted);margin:0 0 9px}
+  .chips{display:flex;gap:7px;flex-wrap:wrap}
+  .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .chip.risk-lo{color:var(--green);border-color:#235} .chip.risk-md{color:var(--amber);border-color:#5a4a22}
+  .chip.risk-hi{color:var(--coral);border-color:#6a3328}
+
+  /* ---- two-col lists ---- */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px 28px}
+  .qlist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px}
+  .qlist li{font-size:14px;color:var(--muted);padding-left:22px;position:relative;line-height:1.5}
+  .qlist li::before{content:"▸";position:absolute;left:0;color:var(--green);font-family:var(--mono)}
+  .qlist.warn li::before{content:"!";color:var(--coral);font-weight:700}
+  .qlist li b{color:var(--text)}
+
+  footer{padding:46px 0 70px;color:var(--faint);font-family:var(--mono);font-size:12px}
+  footer a{color:var(--muted)}
+  .src{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .src a{color:var(--muted)}
+
+  @media (max-width:760px){
+    .spectrum,.tiers{grid-template-columns:1fr}
+    .cols{grid-template-columns:1fr}
+    header.hero{padding:60px 0 40px}
+    section{padding:48px 0}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+  html{scroll-behavior:smooth}
+  svg{display:block;max-width:100%;height:auto}
+  .axis{fill:var(--faint);font-family:var(--mono);font-size:11px}
+  .barlabel{fill:var(--text);font-family:var(--mono);font-size:12px}
+  .barval{fill:#fff;font-family:var(--mono);font-size:12px;font-weight:600}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker-row">
+      <span class="tag live">research plan</span>
+      <span class="tag">quiet-bash</span>
+      <span class="tag">June 2026</span>
+      <span class="tag">broad exploration · not a committed spec</span>
+    </div>
+    <p class="eyebrow">From quieting to learning</p>
+    <h1>Turn the agent's repeated expensive work into a reusable, deterministic asset.</h1>
+    <p class="lead">quiet-bash already <strong>shrinks</strong> each result the moment it's produced.
+      The next step is to make it <strong>learn</strong> — notice where tokens really go, recognize
+      what recurs, and compile that work into something cheap that runs deterministically next time.</p>
+    <div class="flow-line">
+      <b>Observe</b><span class="arr">→</span><b>Recognize</b><span class="arr">→</span><b>Crystallize</b>
+      <span class="arr">→</span><b>Verify</b><span class="arr">→</span><b>Reuse</b><span class="arr">→</span><b>Maintain</b>
+      <span class="arr">↺</span>
+    </div>
+  </div>
+</header>
+
+<nav class="stages" aria-label="Plan sections">
+  <div class="wrap">
+    <a href="#shift">The shift</a>
+    <a href="#loop">The loop</a>
+    <a href="#ladder">Crystallization ladder</a>
+    <a href="#recognize">What recurs</a>
+    <a href="#synthesis">Synthesis</a>
+    <a href="#craft">Crafting MCP &amp; skills</a>
+    <a href="#trust">Trust ladder</a>
+    <a href="#feedback">Feedback &amp; reputation</a>
+    <a href="#priorart">Prior-art gains</a>
+    <a href="#cost">Cost economics</a>
+    <a href="#storage">Storage</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#open">Open questions</a>
+  </div>
+</nav>
+
+<section id="shift">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">01 · The shift</p>
+      <h2>Cache the procedure, not just the answer.</h2>
+      <p>Re-serving a stored result is the simplest move. The bigger lever is compiling a repeated
+        LLM-driven loop into a deterministic artifact — a script, a hook, a markdown skill, an MCP tool —
+        so future runs skip the model entirely. The same recognize-and-reuse instinct already lives in
+        <code style="font-family:var(--mono);font-size:13px;color:#bcd">quiet-dedup.sh</code>; this widens it on every axis.</p>
+    </div>
+    <div class="chart-card">
+      <div class="legend">
+        <span><i style="background:var(--faint)"></i>today: dedup re-reads</span>
+        <span><i style="background:var(--green)"></i>this plan: any operation</span>
+      </div>
+      <svg viewBox="0 0 860 150" role="img" aria-label="Three axes widened: scope from one session to persistent and cross-repo; subject from file reads to any operation; output from re-serving bytes to crystallizing procedures.">
+        <!-- three rows -->
+        <g font-family="var(--mono)">
+          <text x="0" y="26" class="barlabel">WHAT</text>
+          <text x="0" y="74" class="barlabel">LIFETIME</text>
+          <text x="0" y="122" class="barlabel">OUTPUT</text>
+
+          <!-- row 1 -->
+          <rect x="150" y="12" width="150" height="22" rx="5" fill="#22332b"/>
+          <text x="160" y="27" class="axis" fill="#8a9d92">file reads</text>
+          <text x="312" y="27" class="axis">→</text>
+          <rect x="332" y="12" width="320" height="22" rx="5" fill="rgba(39,200,154,.16)" stroke="#27c89a"/>
+          <text x="344" y="27" class="axis" fill="#cdd9d2">any tool call with a derivable result</text>
+
+          <!-- row 2 -->
+          <rect x="150" y="60" width="150" height="22" rx="5" fill="#22332b"/>
+          <text x="160" y="75" class="axis" fill="#8a9d92">one session</text>
+          <text x="312" y="75" class="axis">→</text>
+          <rect x="332" y="60" width="320" height="22" rx="5" fill="rgba(39,200,154,.16)" stroke="#27c89a"/>
+          <text x="344" y="75" class="axis" fill="#cdd9d2">persistent · cross-session · cross-repo</text>
+
+          <!-- row 3 -->
+          <rect x="150" y="108" width="150" height="22" rx="5" fill="#22332b"/>
+          <text x="160" y="123" class="axis" fill="#8a9d92">re-serve bytes</text>
+          <text x="312" y="123" class="axis">→</text>
+          <rect x="332" y="108" width="320" height="22" rx="5" fill="rgba(232,131,107,.14)" stroke="#e8836b"/>
+          <text x="344" y="123" class="axis" fill="#cdd9d2">crystallize the procedure into an artifact</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section id="loop">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">02 · The loop</p>
+      <h2>Six stages, narrow interfaces.</h2>
+      <p>Each stage is independently useful and independently shippable. Stage 1 alone measures where
+        tokens go; stages 1–2 produce a "what's worth crystallizing" report; stage 3 onward is where
+        tokens are actually saved.</p>
+    </div>
+    <div class="pipe">
+      <div class="stage"><span class="n">01</span><h3>Observe</h3><p>One ledger row per tool call: fingerprint, tokens, cost, inputs. Append-only — zero prompt-cache impact.</p></div>
+      <div class="stage"><span class="n">02</span><h3>Recognize</h3><p>Fingerprint + frequency-threshold mining, ranked by recurrence × cost.</p></div>
+      <div class="stage"><span class="n">03</span><h3>Crystallize</h3><p>Pick the lowest rung that covers the pattern; synthesize mechanically, by LLM, or via review.</p></div>
+      <div class="stage"><span class="n">04</span><h3>Verify</h3><p>Differential-test vs the golden result; sandbox; sign &amp; pin before promotion.</p></div>
+      <div class="stage"><span class="n">05</span><h3>Reuse</h3><p>Retrieve (exact key / vector-db / progressive disclosure) and serve cache-safe at the tail.</p></div>
+      <div class="stage"><span class="n">06</span><h3>Maintain</h3><p>Shadow re-check, invalidate on drift, retire, re-learn.</p></div>
+    </div>
+    <div class="loopback"><span>↺</span> Maintenance feeds new traces back into Observe — the loop stays open to change and keeps learning.</div>
+  </div>
+</section>
+
+<section id="ladder">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">03 · Crystallization ladder</p>
+      <h2>Compile to the lowest rung that still covers the pattern.</h2>
+      <p>Lower rungs are cheaper, safer, more deterministic. Higher rungs absorb more variability at the
+        cost of synthesis and trust. Height below = variability a rung can cover.</p>
+    </div>
+
+    <div class="chart-card">
+      <div class="legend">
+        <span><i style="background:var(--green)"></i>deterministic at execution</span>
+        <span><i style="background:var(--amber)"></i>model-guided</span>
+      </div>
+      <svg viewBox="0 0 860 280" role="img" aria-label="Stepped ladder of five rungs. Rung 0 cached result, rung 1 script, rung 2 hook are deterministic; rung 3 skill is model-guided; rung 4 MCP tool is the tallest, covering parameterized operations.">
+        <!-- baseline -->
+        <line x1="40" y1="250" x2="840" y2="250" stroke="#27392f"/>
+        <text x="40" y="272" class="axis">low variability / cheap</text>
+        <text x="840" y="272" class="axis" text-anchor="end">high variability / needs trust</text>
+        <!-- bars -->
+        <g>
+          <!-- r0 -->
+          <rect x="56" y="190" width="140" height="60" rx="6" fill="rgba(39,200,154,.18)" stroke="#27c89a"/>
+          <text x="126" y="214" text-anchor="middle" class="barval">0</text>
+          <text x="126" y="232" text-anchor="middle" class="axis" fill="#cdd9d2">cached result</text>
+          <!-- r1 -->
+          <rect x="212" y="158" width="140" height="92" rx="6" fill="rgba(39,200,154,.16)" stroke="#27c89a"/>
+          <text x="282" y="182" text-anchor="middle" class="barval">1</text>
+          <text x="282" y="200" text-anchor="middle" class="axis" fill="#cdd9d2">script</text>
+          <!-- r2 -->
+          <rect x="368" y="126" width="140" height="124" rx="6" fill="rgba(39,200,154,.14)" stroke="#27c89a"/>
+          <text x="438" y="150" text-anchor="middle" class="barval">2</text>
+          <text x="438" y="168" text-anchor="middle" class="axis" fill="#cdd9d2">hook</text>
+          <!-- r3 -->
+          <rect x="524" y="88" width="140" height="162" rx="6" fill="rgba(224,164,88,.16)" stroke="#e0a458"/>
+          <text x="594" y="112" text-anchor="middle" class="barval">3</text>
+          <text x="594" y="130" text-anchor="middle" class="axis" fill="#cdd9d2">skill (.md)</text>
+          <!-- r4 -->
+          <rect x="680" y="44" width="140" height="206" rx="6" fill="rgba(224,164,88,.2)" stroke="#e0a458"/>
+          <text x="750" y="68" text-anchor="middle" class="barval">4</text>
+          <text x="750" y="86" text-anchor="middle" class="axis" fill="#cdd9d2">MCP tool</text>
+        </g>
+      </svg>
+      <div class="cap"><span>Economics: tool-maker → tool-user. Spend a strong model once to make it; a cheap path uses it forever.</span><span>LATM: up to −79% per-instance cost</span></div>
+    </div>
+
+    <div class="rungs">
+      <div class="rung"><div class="badge">0</div><div><h3>Cached result</h3><p>Identical inputs recur → re-serve the stored, byte-exact result.</p><div class="meta">determinism: total · synthesis: none · retrieval: exact key</div></div></div>
+      <div class="rung"><div class="badge">1</div><div><h3>Script (quiet-*)</h3><p>A fixed deterministic procedure — parse, count, extract — emitted as a small shell helper.</p><div class="meta">determinism: total · synthesis: template or LLM-once · retrieval: name</div></div></div>
+      <div class="rung"><div class="badge">2</div><div><h3>Hook</h3><p>Intercept a known operation and serve a deterministic result with no LLM step.</p><div class="meta">determinism: total at exec · synthesis: mechanical or LLM-once · retrieval: pattern match</div></div></div>
+      <div class="rung"><div class="badge">3</div><div><h3>Skill (.md)</h3><p>A repeated workflow that still needs model judgment — made cheaper and more consistent.</p><div class="meta">determinism: model-guided · synthesis: LLM from traces, human-reviewable · retrieval: progressive disclosure</div></div></div>
+      <div class="rung"><div class="badge">4</div><div><h3>MCP tool</h3><p>A parameterized operation exposed as a callable tool, file- or db-backed.</p><div class="meta">determinism: total at exec · synthesis: LLM + verified · retrieval: vector-db + name/docstring</div></div></div>
+    </div>
+
+    <h3 style="margin:34px 0 6px;font-size:15px">Two tracks: executable <span style="color:var(--faint)">and</span> instructional</h3>
+    <p style="color:var(--muted);font-size:14px;max-width:62ch;margin-bottom:18px">Not every crystallization is code. An artifact can save tokens by <strong>running with no model</strong>, or by being a <strong>non-AI instruction</strong> — learning captured once as plain text the agent reads and follows, with no AI call to regenerate it. The model still does the task; it just follows a proven recipe instead of re-deriving it.</p>
+    <div class="cols">
+      <div class="tier" style="border-top:3px solid var(--green)">
+        <div class="h" style="color:var(--green)">Executable track</div>
+        <p style="font-size:13.5px;color:var(--muted);margin:0 0 10px">Runs with <strong>no model at execution</strong> — the work itself is replaced.</p>
+        <p style="font-family:var(--mono);font-size:12px;color:#bcd;margin:0">cached result · script · hook · MCP tool</p>
+      </div>
+      <div class="tier" style="border-top:3px solid var(--coral)">
+        <div class="h" style="color:var(--coral)">Instructional track</div>
+        <p style="font-size:13.5px;color:var(--muted);margin:0 0 10px">A <strong>non-AI instruction</strong> — captured once, read &amp; followed, no re-synthesis. Two delivery modes:</p>
+        <p style="font-size:13px;color:var(--muted);margin:0 0 7px"><b style="color:var(--text)">Recipe / playbook</b> — <span style="color:var(--green)">retrieved</span> just-in-time (skill body, vector-db). <span class="num">~0</span> carry until loaded. <em>"to find a specific log, grep <code style="font-family:var(--mono);font-size:12px;color:#bcd">logs/</code> for the request-id…"</em></p>
+        <p style="font-size:13px;color:var(--muted);margin:0"><b style="color:var(--text)">Injected instruction</b> — <span style="color:var(--amber)">always-on</span> (<code style="font-family:var(--mono);font-size:12px;color:#bcd">CLAUDE.md</code> / <code style="font-family:var(--mono);font-size:12px;color:#bcd">AGENTS.md</code> / memory), auto-loaded each session. Permanent carry, but cache-friendly at session start.</p>
+      </div>
+    </div>
+    <p class="asym" style="border-left-color:var(--green);margin-top:18px">The <b>skill is the hinge</b>: its body is an instruction, its bundled script is executable. Rule: pick the lowest-carrying-cost option that works — deterministic if mechanical, a retrieved recipe if it needs judgment, an injected instruction <em>only</em> when the learning is worth a permanent per-session tax. <b>Inject sparingly, retrieve by default.</b></p>
+  </div>
+</section>
+
+<section id="recognize">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">04 · What recurs</p>
+      <h2>Rank candidates by recurrence × cost.</h2>
+      <p>Each operation is normalized to a stable fingerprint (literals → typed placeholders, the
+        SQL-shape / log-template trick), then mined with a frequency threshold — exactly AWO's approach.
+        The top of this ranking is the crystallization queue.</p>
+    </div>
+    <div class="chart-card">
+      <svg viewBox="0 0 860 250" role="img" aria-label="Illustrative horizontal bar chart of recurring operation fingerprints ranked by total token cost: npm test highest, then jq over package-lock, grep recursive, tsc build, git log.">
+        <g>
+          <!-- rows: label, bar, value -->
+          <!-- npm test -->
+          <text x="0" y="33" class="barlabel">npm test</text>
+          <rect x="210" y="20" width="600" height="20" rx="4" fill="rgba(232,131,107,.85)"/>
+          <text x="816" y="35" class="barval" text-anchor="end" fill="#0d1512">9.4k</text>
+          <!-- jq package-lock -->
+          <text x="0" y="73" class="barlabel">jq &lt;PATH&gt;</text>
+          <rect x="210" y="60" width="430" height="20" rx="4" fill="rgba(232,131,107,.6)"/>
+          <text x="648" y="75" class="barval" text-anchor="start" fill="#e7efe9">6.7k</text>
+          <!-- grep -rn -->
+          <text x="0" y="113" class="barlabel">grep -rn &lt;STR&gt;</text>
+          <rect x="210" y="100" width="330" height="20" rx="4" fill="rgba(39,200,154,.7)"/>
+          <text x="548" y="115" class="barval" text-anchor="start" fill="#e7efe9">5.1k</text>
+          <!-- tsc build -->
+          <text x="0" y="153" class="barlabel">tsc --build</text>
+          <rect x="210" y="140" width="250" height="20" rx="4" fill="rgba(39,200,154,.55)"/>
+          <text x="468" y="155" class="barval" text-anchor="start" fill="#e7efe9">3.9k</text>
+          <!-- git log -->
+          <text x="0" y="193" class="barlabel">git log &lt;RANGE&gt;</text>
+          <rect x="210" y="180" width="150" height="20" rx="4" fill="rgba(39,200,154,.4)"/>
+          <text x="368" y="195" class="barval" text-anchor="start" fill="#e7efe9">2.3k</text>
+          <!-- axis -->
+          <line x1="210" y1="212" x2="810" y2="212" stroke="#27392f"/>
+          <text x="210" y="230" class="axis">0</text>
+          <text x="810" y="230" class="axis" text-anchor="end">recurring token cost per session →</text>
+        </g>
+      </svg>
+      <div class="cap"><span>⚠ Illustrative shape. The actual distribution is precisely what Stage 1 measures on the bench corpus.</span><span>fingerprint = sha1(canonical)[:12]</span></div>
+    </div>
+    <div class="cols" style="margin-top:22px">
+      <div class="tier" style="border-top:3px solid var(--green)">
+        <div class="h" style="color:var(--green)">single calls vs. sequences</div>
+        <p style="font-size:13.5px;color:var(--muted);margin:0">A pattern isn't always one call. The richest targets are recurring <em>multi-step sequences</em> — read → edit → run-tests, or "find which file logs X, grep it, extract the line." AWO's state-graph merge collapses equivalent states so the recurring sub-path becomes one artifact. Single calls → rungs 0–2; sequences → skills &amp; tools.</p>
+      </div>
+      <div class="tier" style="border-top:3px solid var(--amber)">
+        <div class="h" style="color:var(--amber)">variability decides the rung</div>
+        <p style="font-size:13.5px;color:var(--muted);margin:0">Split <em>fixed</em> from <em>varies</em>: varying slots (<code>&lt;PATH&gt;</code>, <code>&lt;STR&gt;</code>, a range) become the artifact's <strong>parameters</strong>; the fixed structure becomes its body. None → cache/script. A few typed params → MCP tool. Judgment → skill. The mechanical bridge from pattern to typed signature.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="synthesis">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">05 · Synthesis spectrum</p>
+      <h2>Escalate by how much intelligence crystallization needs.</h2>
+      <p>Not one mechanism — a ladder. Try mechanical first; fall to LLM synthesis when the pattern has
+        parameters or judgment; route anything privileged or ambiguous to human approval.</p>
+    </div>
+    <div class="spectrum">
+      <div class="sp mech"><h3>Mechanical</h3><p>Mine a frequent deterministic call-sequence; emit a composite script/hook. Zero LLM at synthesis and execution.</p><div class="lab">safest · rungs 0–2 · AWO</div></div>
+      <div class="sp llm"><h3>LLM-synthesized once</h3><p>A strong model abstracts a verified, deduplicated tool from traces; a cheap path runs it forever.</p><div class="lab">most saving · rungs 1,4 · LATM / CRAFT / Voyager</div></div>
+      <div class="sp hitl"><h3>Human-in-the-loop</h3><p>Package a procedure as a reviewable <code style="font-family:var(--mono);font-size:12px;color:#bcd">SKILL.md</code>; a person approves before it goes active.</p><div class="lab">declarative · rung 3 · Agent Skills</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="craft">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">06 · Crafting the artifact</p>
+      <h2>Make the skill and the MCP tool <em>best-in-class</em>, not just present.</h2>
+      <p>A generated artifact is only worth its carrying cost if it's authored well. Anthropic's own
+        skill and tool guidance sets the bar the crystallizer must hit.</p>
+    </div>
+
+    <h3 style="color:var(--coral);margin-bottom:14px;font-size:14px">Rung 3 · the best skill = description + thin how-to + bundled script</h3>
+    <div class="spectrum" style="margin-bottom:14px">
+      <div class="sp hitl"><h3>Description = retrieval key</h3><p>Only <code style="font-family:var(--mono);font-size:12px;color:#bcd">name</code> + <code style="font-family:var(--mono);font-size:12px;color:#bcd">description</code> stay resident. Third person, "what it does AND when," packed with trigger phrases — Claude under-triggers. This is how the next agent knows to use it.</p><div class="lab">discovery</div></div>
+      <div class="sp hitl"><h3>The LLM writes the how-to</h3><p>The body carries learned guidance — <em>"to find a specific log, grep <code style="font-family:var(--mono);font-size:12px;color:#bcd">logs/</code> for the request-id, read ±20 lines"</em> — so the next session follows a proven path instead of re-discovering it. Keep it &lt;500 lines; reference files load on demand.</p><div class="lab">guidance</div></div>
+      <div class="sp hitl"><h3>Push determinism to scripts</h3><p>Bundle the rung-1/2 script that does the deterministic part — zero tokens until run. Reserve prose for the judgment part only.</p><div class="lab">cheap path</div></div>
+    </div>
+
+    <h3 style="color:var(--green);margin:26px 0 14px;font-size:14px">Rung 4 · the MCP tool, the right way</h3>
+    <ul class="qlist">
+      <li><b>Few, richly-scoped tools — not many micro-tools.</b> One <code style="font-family:var(--mono);font-size:12px;color:#bcd">find_x</code> beats <code style="font-family:var(--mono);font-size:12px;color:#bcd">list_x</code>+<code style="font-family:var(--mono);font-size:12px;color:#bcd">get_x</code>+<code style="font-family:var(--mono);font-size:12px;color:#bcd">filter_x</code> — fewer ambiguous decisions, less context.</li>
+      <li><b>Concise, paginated output</b> with a <code style="font-family:var(--mono);font-size:12px;color:#bcd">detail_level</code> knob — Anthropic shows <span class="num">72</span> vs <span class="num">206</span> tokens for the verbose form (~⅔ off). On-brand for quiet-bash.</li>
+      <li><b>Strict schemas, self-documenting params</b> (<code style="font-family:var(--mono);font-size:12px;color:#bcd">user_id</code>, not <code style="font-family:var(--mono);font-size:12px;color:#bcd">user</code>); actionable errors, never raw tracebacks. The fingerprint's varying slots <em>become</em> the input schema.</li>
+      <li><b>Idempotent &amp; deterministic;</b> annotations for destructive / open-world access; <b>schema-pinned</b> and re-verified on load (defends the "rug-pull").</li>
+    </ul>
+  </div>
+</section>
+
+<section id="trust">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">07 · Trust ladder</p>
+      <h2>A generated artifact is untrusted code until proven.</h2>
+      <p>Promotion is slow and evidence-gated through differential testing against the captured "golden"
+        result. (Caveat from the literature: agent-<em>generated</em> tests are weak validators — use them
+        only as a supplementary signal.)</p>
+    </div>
+    <div class="trust">
+      <div class="tnode proposed"><div class="st">Proposed</div><p>Synthesized, signed &amp; schema-pinned, runs only in a least-privilege sandbox. Never relied upon.</p></div>
+      <div class="tnode shadow"><div class="st">Shadow</div><p>Runs in parallel with the LLM loop; outputs diffed against the golden. Pays double — bound the window.</p></div>
+      <div class="tnode trusted"><div class="st">Trusted</div><p>Graduates via bounded canary (1–5% → wider). Now replaces the LLM loop; the saving materializes.</p></div>
+      <div class="tnode retired"><div class="st">Retired</div><p>Drift fires (upstream change, TTL lapse, shadow contradiction) → auto-disabled, fall back to LLM, re-queue.</p></div>
+    </div>
+    <p class="asym"><b>The ladder is deliberately asymmetric:</b> promotion is slow and evidence-gated; demotion is instant and automatic. A drifting artifact fails <em>safe</em> back to the model — never serves stale or poisoned behavior.</p>
+  </div>
+</section>
+
+<section id="feedback">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">08 · Usage feedback &amp; reputation</p>
+      <h2>Every reuse is a vote — even by another agent.</h2>
+      <p>When an artifact is used (including by another session or agent), the use is logged with two
+        signals. They accumulate into a reputation that drives discovery, promotion, and eviction —
+        so good, cheap artifacts rise and drifting ones fall, automatically.</p>
+    </div>
+    <div class="chart-card">
+      <svg viewBox="0 0 860 230" role="img" aria-label="Feedback loop: an artifact is used, each use is tagged good-or-not and its action cost recorded, these accumulate into a reputation score, which drives retrieval ranking, trust promotion, and eviction, feeding back into the next use.">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5f7268"/></marker>
+        </defs>
+        <g font-family="var(--mono)">
+          <!-- use -->
+          <rect x="40" y="92" width="150" height="46" rx="9" fill="#15201b" stroke="#27392f"/>
+          <text x="115" y="112" text-anchor="middle" class="barlabel">artifact used</text>
+          <text x="115" y="128" text-anchor="middle" class="axis">by any session/agent</text>
+          <!-- signals -->
+          <rect x="250" y="40" width="180" height="44" rx="9" fill="rgba(39,200,154,.12)" stroke="#27c89a"/>
+          <text x="340" y="60" text-anchor="middle" class="axis" fill="#cdd9d2">tag: good ✓ / not ✗</text>
+          <text x="340" y="76" text-anchor="middle" class="axis" fill="#7f968b">correct &amp; useful?</text>
+          <rect x="250" y="146" width="180" height="44" rx="9" fill="rgba(232,131,107,.12)" stroke="#e8836b"/>
+          <text x="340" y="166" text-anchor="middle" class="axis" fill="#cdd9d2">record: action cost</text>
+          <text x="340" y="182" text-anchor="middle" class="axis" fill="#7f968b">tokens / time spent</text>
+          <!-- reputation -->
+          <rect x="490" y="80" width="170" height="70" rx="9" fill="#1b2a23" stroke="#3a5"/>
+          <text x="575" y="104" text-anchor="middle" class="barlabel">reputation</text>
+          <text x="575" y="122" text-anchor="middle" class="axis" fill="#8a9d92">success_rate ·</text>
+          <text x="575" y="137" text-anchor="middle" class="axis" fill="#8a9d92">net_saved · uses</text>
+          <!-- drives -->
+          <rect x="700" y="36" width="150" height="34" rx="8" fill="#15201b" stroke="#27392f"/>
+          <text x="775" y="57" text-anchor="middle" class="axis" fill="#cdd9d2">retrieval rank</text>
+          <rect x="700" y="98" width="150" height="34" rx="8" fill="#15201b" stroke="#27392f"/>
+          <text x="775" y="119" text-anchor="middle" class="axis" fill="#cdd9d2">trust promotion</text>
+          <rect x="700" y="160" width="150" height="34" rx="8" fill="#15201b" stroke="#27392f"/>
+          <text x="775" y="181" text-anchor="middle" class="axis" fill="#cdd9d2">eviction</text>
+          <!-- arrows -->
+          <path d="M190,108 L246,62" fill="none" stroke="#5f7268" marker-end="url(#ah)"/>
+          <path d="M190,122 L246,168" fill="none" stroke="#5f7268" marker-end="url(#ah)"/>
+          <path d="M430,62 L486,100" fill="none" stroke="#5f7268" marker-end="url(#ah)"/>
+          <path d="M430,168 L486,130" fill="none" stroke="#5f7268" marker-end="url(#ah)"/>
+          <path d="M660,108 L696,53" fill="none" stroke="#5f7268" marker-end="url(#ah)"/>
+          <path d="M660,115 L696,115" fill="none" stroke="#5f7268" marker-end="url(#ah)"/>
+          <path d="M660,122 L696,177" fill="none" stroke="#5f7268" marker-end="url(#ah)"/>
+          <!-- feedback loop back to use -->
+          <path d="M775,194 L775,212 L115,212 L115,140" fill="none" stroke="#3a5" stroke-dasharray="4 4" marker-end="url(#ah)"/>
+          <text x="430" y="226" text-anchor="middle" class="axis" fill="#27c89a">↺ the next agent sees the best-reputation, best-fitting artifact first — and knows what to use</text>
+        </g>
+      </svg>
+    </div>
+    <p class="asym" style="border-left-color:var(--green)"><b>Reputation × description-match is the ranking key.</b> Accumulating good, low-cost uses is exactly the evidence that promotes an artifact up the trust ladder; a run of bad uses or a cost regression demotes and eventually evicts it.</p>
+  </div>
+</section>
+
+<section id="priorart">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">09 · Prior-art gains</p>
+      <h2>The economics this plan stands on.</h2>
+      <p>Reported, sourced results from the work this design builds on. Each bar names its own metric —
+        they are not the same axis.</p>
+    </div>
+    <div class="chart-card">
+      <svg viewBox="0 0 860 250" role="img" aria-label="Bar chart of reported gains. LATM up to 79 percent lower per-instance cost. AWO up to 15 percent cost reduction and 11.9 percent fewer LLM calls. quiet-bash already cuts command-output context by 99.9 percent on a separate axis.">
+        <g>
+          <line x1="60" y1="200" x2="820" y2="200" stroke="#27392f"/>
+          <!-- bar 1 LATM 79 -->
+          <rect x="90" y="74" width="120" height="126" rx="5" fill="rgba(39,200,154,.85)"/>
+          <text x="150" y="64" text-anchor="middle" class="barval">79%</text>
+          <text x="150" y="220" text-anchor="middle" class="axis" fill="#cdd9d2">LATM</text>
+          <text x="150" y="236" text-anchor="middle" class="axis">cost / instance</text>
+          <!-- bar 2 AWO cost 15 -->
+          <rect x="270" y="176" width="120" height="24" rx="5" fill="rgba(224,164,88,.85)"/>
+          <text x="330" y="166" text-anchor="middle" class="barval">15%</text>
+          <text x="330" y="220" text-anchor="middle" class="axis" fill="#cdd9d2">AWO</text>
+          <text x="330" y="236" text-anchor="middle" class="axis">cost reduction</text>
+          <!-- bar 3 AWO calls 11.9 -->
+          <rect x="450" y="181" width="120" height="19" rx="5" fill="rgba(224,164,88,.6)"/>
+          <text x="510" y="171" text-anchor="middle" class="barval">11.9%</text>
+          <text x="510" y="220" text-anchor="middle" class="axis" fill="#cdd9d2">AWO</text>
+          <text x="510" y="236" text-anchor="middle" class="axis">fewer LLM calls</text>
+          <!-- bar 4 quiet-bash 99.9 context -->
+          <rect x="630" y="42" width="120" height="158" rx="5" fill="rgba(232,131,107,.85)"/>
+          <text x="690" y="32" text-anchor="middle" class="barval">99.9%</text>
+          <text x="690" y="220" text-anchor="middle" class="axis" fill="#cdd9d2">quiet-bash</text>
+          <text x="690" y="236" text-anchor="middle" class="axis">context (shipped)</text>
+        </g>
+      </svg>
+      <div class="cap"><span class="src">Sources: LATM arxiv 2305.17126 · AWO arxiv 2601.22037 · quiet-bash bench/run.sh</span><span>↑ higher = more saved</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="cost">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">10 · Cost economics</p>
+      <h2>Crystallizing is an investment — only do it past break-even.</h2>
+      <p>A one-time synthesis cost, recovered over many reuses. Stage 2's recurrence × cost ranking is
+        literally estimating this payoff. The decision rule:
+        <code style="font-family:var(--mono);font-size:13px;color:#bcd">crystallize when projected_reuses &gt; synthesis_cost / per_use_saving</code>.</p>
+    </div>
+    <div class="chart-card">
+      <svg viewBox="0 0 860 280" role="img" aria-label="Break-even line chart. Cumulative net tokens start negative at minus the synthesis cost, rise by the per-use saving with each reuse, cross zero at the break-even point, and keep climbing into net savings. A dashed line shows that a high carrying cost lowers the per-use slope and pushes break-even later.">
+        <g font-family="var(--mono)">
+          <!-- axes -->
+          <line x1="70" y1="20" x2="70" y2="250" stroke="#27392f"/>
+          <line x1="70" y1="150" x2="830" y2="150" stroke="#3a4f44"/>
+          <text x="64" y="34" text-anchor="end" class="axis" fill="#27c89a">+net</text>
+          <text x="64" y="250" text-anchor="end" class="axis" fill="#e8836b">−cost</text>
+          <text x="820" y="168" text-anchor="end" class="axis">reuses →</text>
+          <!-- break-even line (good slope) -->
+          <polyline points="70,235 250,150 830,55" fill="none" stroke="#27c89a" stroke-width="2.5"/>
+          <!-- carrying-cost-heavy line (shallower) -->
+          <polyline points="70,235 360,150 830,120" fill="none" stroke="#e0a458" stroke-width="2" stroke-dasharray="6 5"/>
+          <!-- synthesis cost marker -->
+          <circle cx="70" cy="235" r="4" fill="#e8836b"/>
+          <text x="84" y="232" class="axis" fill="#e8836b">−synthesis cost (one-time)</text>
+          <!-- break-even points -->
+          <circle cx="250" cy="150" r="4.5" fill="#27c89a"/>
+          <text x="250" y="138" text-anchor="middle" class="barval" fill="#27c89a">break-even</text>
+          <circle cx="360" cy="150" r="4" fill="#e0a458"/>
+          <text x="360" y="138" text-anchor="middle" class="axis" fill="#e0a458">later (high carry)</text>
+          <!-- net savings region label -->
+          <text x="700" y="80" text-anchor="middle" class="axis" fill="#27c89a">net savings accrue</text>
+          <!-- legend -->
+          <text x="84" y="270" class="axis" fill="#27c89a">— low carrying cost</text>
+          <text x="260" y="270" class="axis" fill="#e0a458">--- high carrying cost (shallower slope, later break-even)</text>
+        </g>
+      </svg>
+      <div class="cap"><span>tool-maker → tool-user: spend a strong model once, a cheap path uses it forever.</span><span>LATM: −79% / instance</span></div>
+    </div>
+    <div class="cols" style="margin-top:22px">
+      <div>
+        <h3 style="color:var(--text);margin-bottom:12px">Three costs the accounting can't ignore</h3>
+        <ul class="qlist">
+          <li><b>Synthesis</b> (one-time) — the strong-model call that writes the artifact. Amortized over reuses.</li>
+          <li><b>Shadow</b> (transient) — runs alongside the LLM loop, so you pay <em>both</em>. Bound the window or it never nets out.</li>
+          <li><b>Carrying</b> (ongoing) — every resident tool/skill description costs tokens <em>every turn</em>: ~<span class="num">55K</span> for <span class="num">58</span> tools; past a point accuracy also rots.</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:var(--text);margin-bottom:12px">Why you can't crystallize everything</h3>
+        <ul class="qlist">
+          <li>Keep a small <b>resident index</b> (names + descriptions); defer full schemas/bodies to just-in-time search — the vector-db tier.</li>
+          <li>Tool Search loads a ~<span class="num">500</span>-token index vs ~<span class="num">77K</span> — an <b>~85% cut that also raised accuracy</b> (49%→74%, Opus 4).</li>
+          <li><b>Net = reuse_saving − synthesis − shadow − carrying.</b> Negative net → evict. Carrying cost makes the active set self-pruning.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="storage">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">11 · Storage</p>
+      <h2>Three layered tiers — files, sqlite, vector-db.</h2>
+      <p>Per-repo by default (same codebase → same answers), with an opt-in, allowlist-only global tier
+        for provably repo-independent facts. Never open, to avoid cross-repo poisoning.</p>
+    </div>
+    <div class="tiers">
+      <div class="tier s1"><div class="h">files</div><p>The artifacts — executable <em>and</em> instructional — &amp; byte-exact outputs. <code>.quiet-cache/</code>, generated <code>skills/</code> <code>hooks/</code> <code>mcp/</code> <code>recipes/</code>, plus injected <code>CLAUDE.md</code>/<code>AGENTS.md</code>/memory. Zero-dependency, git-reviewable, lossless recovery one <code>Read</code> away.</p></div>
+      <div class="tier s2"><div class="h">sqlite</div><p>The observability ledger and recurrence ranking. Cheap <code>GROUP BY</code> over fingerprints to answer "what's worth crystallizing." One local dependency.</p></div>
+      <div class="tier s3"><div class="h">vector-db</div><p>Embeddings of artifact descriptions. Semantic retrieval of <em>which</em> crystallized skill/tool fits a new task — Voyager top-k / CRAFT multi-view — where exact match won't find it.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">12 · Roadmap</p>
+      <h2>Measure recurrence before building reuse.</h2>
+      <p>The lowest-risk, highest-information path. Each phase is shippable and earns the next.</p>
+    </div>
+    <div class="road">
+      <div class="phase"><div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body"><h3>1 · Observe-only</h3><p>Append the fingerprint + cost ledger behind a flag; add it to bench reporting. Output: the recurrence × cost distribution on real sessions — the evidence base for everything else.</p><div class="chips"><span class="chip risk-lo">risk: low</span><span class="chip">effort: S</span><span class="chip">zero reuse</span></div></div></div>
+      <div class="phase"><div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body"><h3>2 · Recognition report</h3><p>A <code style="font-family:var(--mono);font-size:12px;color:#bcd">quiet-*</code> helper that prints the top recurring expensive fingerprints per session/repo.</p><div class="chips"><span class="chip risk-lo">risk: low</span><span class="chip">effort: S</span><span class="chip">zero reuse</span></div></div></div>
+      <div class="phase"><div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body"><h3>3 · Mechanical crystallization</h3><p>Narrowest safe slice: input-addressed, per-repo, idempotent-allowlisted ops → cached result or generated script/hook, served at the tail. Wrong-hit rate must be zero.</p><div class="chips"><span class="chip risk-md">risk: medium</span><span class="chip">effort: M</span><span class="chip">first real saving</span></div></div></div>
+      <div class="phase"><div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body"><h3>4 · LLM-synthesized skills / MCP + vector-db</h3><p>Separate, opt-in. Each artifact climbs the trust ladder (proposed → shadow → trusted) before it's relied upon.</p><div class="chips"><span class="chip risk-hi">risk: high</span><span class="chip">effort: L</span><span class="chip">off by default</span></div></div></div>
+      <div class="phase"><div class="rail"><div class="dot"></div><div class="line"></div></div>
+        <div class="body"><h3>5 · Maintenance loop</h3><p>Shadow re-checks and drift retirement; keep the archive versioned so artifacts are refined, not just replaced.</p><div class="chips"><span class="chip risk-md">risk: medium</span><span class="chip">effort: M</span><span class="chip">keeps it open</span></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="open">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">13 · Open questions &amp; risks</p>
+      <h2>What to resolve before any spec.</h2>
+    </div>
+    <div class="cols">
+      <div>
+        <h3 style="color:var(--green);margin-bottom:14px">Open questions</h3>
+        <ul class="qlist">
+          <li><b>Is there enough recurrence to matter?</b> Unknown until Stage 1 runs on the bench corpus. The single most important measurement.</li>
+          <li><b>PreToolUse skip vs. PostToolUse quiet?</b> Skipping a re-run saves most but may break an adapter's expectations.</li>
+          <li><b>Who runs LLM synthesis?</b> Async between sessions, or a maintainer command? Decides autonomous vs. supervised.</li>
+          <li><b>How long is the shadow window?</b> It pays double until promotion — when is the saving net positive?</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:var(--coral);margin-bottom:14px">Risks</h3>
+        <ul class="qlist warn">
+          <li><b>Under-keying → wrong hits.</b> Over-include inputs, version the schema, deny-list un-enumerable ops.</li>
+          <li><b>Trusting a bad artifact.</b> Trust ladder + differential gate; generated tests are supplementary only.</li>
+          <li><b>Security: rug-pull, injection, over-privilege.</b> Sign/pin, sandbox, least privilege, human gate tier-0.</li>
+          <li><b>Prompt-cache busting.</b> Serve only at the tail; never rewrite old results in v1.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    quiet-bash · the learning loop — companion to <a href="learning-loop.md">docs/research/learning-loop.md</a><br>
+    Recognize → crystallize → reuse. Measure recurrence before building reuse; make each artifact earn trust before it replaces the model.
+  </div>
+</footer>
